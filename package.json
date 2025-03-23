@@ -7,7 +7,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@hono/node-ws": "^1.1.0",
-    "@prisma/client": "^6.2.1",
+    "@prisma/client": "^6.5.0",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.5.1",
     "dotenv": "^16.4.7",

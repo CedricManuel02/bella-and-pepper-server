@@ -70,14 +70,16 @@ export async function signOutAccountService(user_id: string) {
 }
 
 export async function registerAccountService(payload: IAccount) {
-  const { user_name, user_email, user_password, user_confirm_password } = payload;
+  const { user_name, user_email, user_password, confirm_password } = payload;
+
+
   if (!user_name || !user_email || !user_password) throw new BadRequestError("All fields are required");
 
   if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address");
 
   if (user_password.length < MIN_PASSWORD_LENGTH) throw new BadRequestError("Password must be at least 8 characters long");
 
-  if (user_password !== user_confirm_password) throw new BadRequestError("Password mismatch");
+  if (user_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
   const hash_password = await bcrypt.hash(user_password, SALT_ROUND);
 
@@ -249,9 +251,9 @@ export async function resetProfilePasswordService({
 
   if(!user) throw new BadRequestError("User not found");
 
-  const hash_password = await bcrypt.hash(user_password, SALT_ROUND);
+  const password_match = await bcrypt.compare(user_password, user.user_password);
 
-  if(user.user_password !== hash_password) throw new BadRequestError("Password incorrect");
+  if(!password_match) throw new BadRequestError("Password mismatch");
 
   if(new_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
