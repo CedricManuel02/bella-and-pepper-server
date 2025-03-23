@@ -65,7 +65,7 @@ export async function resetPasswordController(c: Context) {
 }
 
 export async function resetProfilePasswordController(c: Context) {
-  const {user_id} = await c.req.param();
+  const user_id = c.get("user_id")
 
   const body = await c.req.json();
 
