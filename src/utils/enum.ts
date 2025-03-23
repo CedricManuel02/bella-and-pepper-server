@@ -1,0 +1,23 @@
+export enum Role {
+  ADMIN,
+  USER,
+}
+
+export enum RefundReason {
+  DUPLICATE,
+  FRAUDULENT,
+  CANCELLED,
+  REQUESTED_BY_CUSTOMER,
+  OTHERS,
+}
+
+export enum CancelledReason {
+  CHANGE_OF_ADDRESS,
+  FRAUDULENT_ORDER,
+  SHIPPING_DELAY,
+  DUPLICATE_ORDER,
+  PAYMENT_FAILED,
+  OTHER,
+}
+
+export type Status = "PLACED_ORDER" | "CANCELLED" | "PAID" | "REFUNDED" | "RATING" | "APPROVED" | "SHIPPED" | "DELIVERED"

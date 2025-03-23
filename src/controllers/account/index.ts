@@ -1,42 +1,65 @@
 import type { Context } from "hono";
-import {loginAccountService, registerAccountService} from "../../services/account/index.js";
-import { fileURLToPath } from "url";
-import path from "path";
-import * as fs from "fs";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const srcPath = path.resolve(__dirname, "../../"); 
-const uploadDir = path.join(srcPath, "uploads");
+import { createForgotPasswordService, getAccountService, getVerificationTokenService, loginAccountService, registerAccountService, resetPasswordService, signOutAccountService } from "../../services/account/index.js";
+import { StatusCodes } from "http-status-codes";
+import { deleteCookie, getCookie } from "hono/cookie";
 export async function loginAccountController(c: Context) {
-  const body = await c.req.json();
+  const { user_email, user_password } = await c.req.json();
 
-  const loginService = await loginAccountService(body);
-
-  return c.json({ payload: loginService, payloadType: "login" });
+  const {user, session_token} = await loginAccountService({ user_email, user_password, c });
+  
+  return c.json({ data: user, token: session_token, status: StatusCodes.OK });
 }
 
 export async function registerAccountController(c: Context) {
   const body = await c.req.json();
 
-  const registerService = await registerAccountService(body);
+  await registerAccountService(body);
 
-  return c.json({ payload: registerService, payloadType: "register" });
+  return c.json({ message: "Successfully registered your account", status: StatusCodes.CREATED });
 }
-export async function getUser(c: Context){
-  const body = await c.req.parseBody();
-  const file = body["file"];
 
-  if (file instanceof File) {
-      const buffer = await file.arrayBuffer();
+export async function getAccountController(c: Context) {
+  const user_id = c.get("user_id");
 
-      try {
-       fs.writeFileSync(`${uploadDir}/Image1.jpg`, Buffer.from(buffer));
-       return c.text("Success loading image")
-      } catch (error) {
-       console.log(error);
-      }
-  } else {
-      return c.json({error: "Invalid file type", payloadType: "getUser"});
-  }
+  const {user, access_token} = await getAccountService(user_id);
+
+  return c.json({data: user, token: access_token, status: StatusCodes.OK})
+}
+
+export async function signOutAccountController(c: Context) {
+  const user_id = c.get("user_id");
+  
+  await signOutAccountService(user_id);
+
+  deleteCookie(c, "auth__token");
+
+  return c.json({message: "Successfully signout", status: StatusCodes.OK})
+}
+
+export async function createForgotPasswordController(c: Context) {
+  const body = await c.req.json();
+
+  await createForgotPasswordService(body)
+
+  return c.json({message: "We send to your email for resetting your password", status: StatusCodes.CREATED});
+}
+
+export async function getVerificationTokenController(c: Context) {
+  const {token} = await c.req.param();
+
+  await getVerificationTokenService(token)
+
+  return c.json({message: "We send to your email for resetting your password", status: StatusCodes.CREATED});
+}
+
+export async function resetPasswordController(c: Context) {
+  const {token} = await c.req.param();
+  const body = await c.req.json();
+
+  const new_password = body["new_password"];
+  const confirm_password = body["confirm_password"];
+
+  await resetPasswordService({new_password, confirm_password ,reset_token: token})
+
+  return c.json({message: "Successfully change password", status: StatusCodes.CREATED});
 }

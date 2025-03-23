@@ -13,16 +13,347 @@ datasource db {
   url      = env("DEVELOPMENT_DATABASE_URL")
 }
 
-model tbl_user {
-  user_id                String    @id @default(uuid())
-  user_name              String
-  user_phone             String?
-  user_email             String    @unique
-  user_password          String
-  user_profile           String?
-  user_is_verified       String?
-  user_date_created      DateTime  @default(now())
-  user_date_updated      DateTime  @updatedAt
-  reset_token_hash       String?
-  reset_token_expires_at DateTime?
+// LIST OF ENUM
+enum Role {
+  ADMIN
+  USER
+}
+
+enum RefundReason {
+  DUPLICATE
+  FRAUDULENT
+  CANCELLED
+  REQUESTED_BY_CUSTOMER
+  OTHERS
+}
+
+enum CancelledReason {
+  CHANGE_OF_ADDRESS
+  FRAUDULENT_ORDER
+  SHIPPING_DELAY
+  DUPLICATE_ORDER
+  PAYMENT_FAILED
+  OTHER
+}
+
+enum Status {
+  CANCELLED
+  APPROVED
+  PAID
+  REFUNDED
+  PLACED_ORDER
+  RATING
+  SHIPPED
+  DELIVERED
+}
+
+// TABLE FOR SHIPPING FEE
+model tbl_shipping_fee {
+  shipping_fee_id           String       @id @unique @default(uuid())
+  province_id               String
+  province_name             String
+  shipping_fee_rate         Int
+  expected_shipping_days    Int
+  shipping_fee_date_created DateTime     @default(now())
+  shipping_fee_date_updated DateTime?    @updatedAt
+  shipping_fee_date_deleted DateTime?
+  tbl_orders                tbl_orders[]
+}
+
+// TABLE FOR PRODUCT CATEGORIES
+model tbl_categories {
+  category_id           String         @id @unique @default(uuid())
+  category_name         String
+  category_image_url    String
+  category_date_created DateTime       @default(now())
+  category_date_updated DateTime?      @updatedAt
+  category_date_deleted DateTime?
+  tbl_products          tbl_products[]
+}
+
+// TABLE FOR ACCOUNT
+model tbl_users {
+  user_id           String   @id @unique @default(uuid())
+  roles             Role
+  user_name         String
+  user_phone        String?
+  user_email        String   @unique
+  user_password     String
+  user_profile      String?
+  user_is_verified  String?
+  user_date_created DateTime @default(now())
+  user_date_updated DateTime @updatedAt
+
+  // RELATIONSHIP
+  tbl_reset_token        tbl_reset_token?
+  tbl_orders             tbl_orders[]
+  tbl_cart               tbl_cart[]
+  sent_notifications     tbl_notifications[] @relation("SenderRelation")
+  received_notifications tbl_notifications[] @relation("ReceiverRelation")
+  tbl_rating             tbl_rating[]
+  tbl_session            tbl_session[]
+}
+
+// TABLE FOR RESETING A PASSWORD
+model tbl_reset_token {
+  reset_token_id           String    @id @unique @default(uuid())
+  user_id                  String    @unique
+  tbl_users                tbl_users @relation(fields: [user_id], references: [user_id])
+  reset_token_hash         String
+  reset_token_expires_at   DateTime
+  reset_token_date_created DateTime  @default(now())
+}
+
+model tbl_session {
+  session_id           String    @id @unique @default(uuid())
+  user_id              String
+  tbl_users            tbl_users @relation(fields: [user_id], references: [user_id])
+  session_token        String    @db.Text
+  session_expires_at   DateTime
+  session_date_created DateTime  @default(now())
+  session_date_updated DateTime  @updatedAt
+}
+
+// TABLE FOR NOTIFICATIONS
+model tbl_notifications {
+  notifications_id           String        @id @default(uuid())
+  notifications_title        String
+  notifications_body         String
+  notifications_date_created DateTime      @default(now())
+  notifications_read         Boolean       @default(false)
+  status                     Status
+  user_sender_id             String?
+  tbl_users_sender           tbl_users?    @relation(fields: [user_sender_id], references: [user_id], name: "SenderRelation")
+  user_receiver_id           String
+  tbl_users_receiver         tbl_users     @relation(fields: [user_receiver_id], references: [user_id], name: "ReceiverRelation")
+  order_id                   String?
+  tbl_orders                 tbl_orders?   @relation(fields: [order_id], references: [order_id])
+  product_id                 String?
+  tbl_products               tbl_products? @relation(fields: [product_id], references: [product_id])
+}
+
+// TABLE FOR PRODUCTS
+model tbl_products {
+  product_id           String              @id @unique @default(uuid())
+  category_id          String
+  tbl_categories       tbl_categories      @relation(fields: [category_id], references: [category_id])
+  product_upc_number   String
+  product_name         String
+  product_description  String              @db.Text
+  product_date_created DateTime            @default(now())
+  product_date_updated DateTime?           @updatedAt
+  product_date_deleted DateTime?
+  tbl_variants         tbl_variants[]
+  tbl_rating           tbl_rating[]
+  tbl_cart             tbl_cart[]
+  tbl_items            tbl_items[]
+  tbl_notifications    tbl_notifications[]
+}
+
+// TABLE FOR PRODUCT VARIANTS
+model tbl_variants {
+  variant_id           String             @id @unique @default(uuid())
+  product_id           String
+  tbl_products         tbl_products       @relation(fields: [product_id], references: [product_id])
+  variant_name         String
+  variant_price        Decimal
+  variant_stocks       Int
+  variant_image_url    String
+  variant_date_created DateTime           @default(now())
+  variant_date_deleted DateTime?
+  tbl_items            tbl_items[]
+  tbl_cart             tbl_cart[]
+  tbl_variant_item     tbl_variant_item[]
+  tbl_rating           tbl_rating[]
+}
+
+// TABLE FOR TABLE DISCOUNT OF VARIANT
+model tbl_discount {
+  discount_id           String             @id @unique @default(uuid())
+  discount_percentage   Int
+  discount_end_date     DateTime
+  discount_date_created DateTime           @default(now())
+  discount_date_updated DateTime?          @updatedAt
+  discount_date_deleted DateTime?
+  tbl_variant_item      tbl_variant_item[]
+}
+
+// TABLE FOR 
+model tbl_variant_item {
+  variant_discount_id           String       @id @unique @default(uuid())
+  discount_id                   String
+  variant_id                    String
+  tbl_discount                  tbl_discount @relation(fields: [discount_id], references: [discount_id])
+  tbl_variants                  tbl_variants @relation(fields: [variant_id], references: [variant_id])
+  variant_discount_date_created DateTime     @default(now())
+  variant_discount_date_deleted DateTime     @default(now())
+
+  @@unique([variant_id, discount_id])
+}
+
+// TABLE FOR RATING A PRODUCT (VARIANT)
+model tbl_rating {
+  rating_id           String             @id @unique @default(uuid())
+  product_id          String
+  tbl_product         tbl_products       @relation(fields: [product_id], references: [product_id])
+  variant_id          String
+  tbl_variants        tbl_variants       @relation(fields: [variant_id], references: [variant_id])
+  order_id            String
+  tbl_orders          tbl_orders         @relation(fields: [order_id], references: [order_id])
+  user_id             String
+  tbl_users           tbl_users          @relation(fields: [user_id], references: [user_id])
+  rating              Int
+  rating_text         String?            @db.Text
+  rating_date_created DateTime           @default(now())
+  tbl_rating_media    tbl_rating_media[]
+}
+
+// TABLE IF THE CUSTOMER PROVIDE A PRODUCT IMAGE IN RATING
+model tbl_rating_media {
+  media_id   String     @id @unique @default(uuid())
+  rating_id  String     @unique
+  tbl_rating tbl_rating @relation(fields: [rating_id], references: [rating_id])
+  media_path String     @db.Text
+}
+
+// TABLE FOR CUSTOMER ORDER STATUS TRACKING
+model tbl_order_status {
+  order_status_id           String                    @id @unique @default(uuid())
+  order_id                  String                    @unique
+  tbl_orders                tbl_orders                @relation(fields: [order_id], references: [order_id])
+  status                    Status
+  order_status_date_created DateTime                  @default(now())
+  tbl_order_status_images   tbl_order_status_images[]
+}
+
+// TABLE FOR ORDER STATUS IMAGE RESTRICTED FOR SHIPPED STATUS ONLY
+model tbl_order_status_images {
+  order_status_image_id String           @id @unique @default(uuid())
+  order_status_id       String
+  tbl_order_status      tbl_order_status @relation(fields: [order_status_id], references: [order_status_id])
+  order_status_image    String?          @db.Text
+}
+
+// TABLE FOR CUSTOMER ORDER
+model tbl_orders {
+  order_id                   String                    @id @unique @default(uuid())
+  order_number               String                    @unique
+  user_id                    String
+  tbl_users                  tbl_users                 @relation(fields: [user_id], references: [user_id])
+  order_shipping_fee         Int
+  shipping_fee_id            String
+  tbl_shipping_fee           tbl_shipping_fee          @relation(fields: [shipping_fee_id], references: [shipping_fee_id])
+  order_target_date_received DateTime
+  tbl_items                  tbl_items[]
+  tbl_order_information      tbl_order_information[]
+  order_date_created         DateTime                  @default(now())
+  order_policy_aggreement    Boolean
+  tbl_order_status           tbl_order_status[]
+  tbl_order_payment          tbl_order_payment?
+  tbl_delivery_information   tbl_delivery_information?
+  tbl_notifications          tbl_notifications[]
+  tbl_cancelled_order        tbl_cancelled_order?
+  tbl_rating                 tbl_rating[]
+}
+
+// TABLE FOR CUSTOMER ORDER PAYMENT
+model tbl_order_payment {
+  payment_id              String             @id @unique @default(uuid())
+  order_id                String             @unique
+  tbl_orders              tbl_orders         @relation(fields: [order_id], references: [order_id])
+  payment_method          String?
+  payment_unique_id       String?
+  payment_intent_id       String
+  payment_transaction_fee Int?
+  payment_status          String             @default("PENDING")
+  payment_date_paid       DateTime?
+  payment_date_created    DateTime           @default(now())
+  tbl_order_refund        tbl_order_refund[]
+}
+
+// TABLE FOR DELIVERY INFORMATION
+model tbl_delivery_information {
+  delivery_id              String     @id @unique @default(uuid())
+  order_id                 String     @unique
+  tbl_orders               tbl_orders @relation(fields: [order_id], references: [order_id])
+  delivery_company         String
+  delivery_rider_name      String
+  delivery_rider_phone     String
+  delivery_plate_number    String
+  delivery_tracking_number String
+  delivery_date_created    DateTime   @default(now())
+}
+
+// TABLE FOR CUSTOMER ORDER PERSONAL INFORMATION 
+model tbl_order_information {
+  order_information_id                 String     @id @unique @default(uuid())
+  order_id                             String     @unique
+  tbl_orders                           tbl_orders @relation(fields: [order_id], references: [order_id])
+  order_information_first_name         String
+  order_information_last_name          String
+  order_information_email              String
+  order_information_phone              String
+  order_address_complete               String
+  order_address_cities                 String
+  order_address_province               String
+  order_address_barangay               String
+  order_information_user_longitude     String
+  order_information_user_latitude      String
+  order_information_delivery_longitude String
+  order_information_delivery_latitude  String
+}
+
+// TABLE FOR CUSTOMER ORDER ARRAY OF ITEMS
+model tbl_items {
+  item_id                                String       @id @unique @default(uuid())
+  order_id                               String
+  tbl_orders                             tbl_orders   @relation(fields: [order_id], references: [order_id])
+  variant_id                             String
+  tbl_variant                            tbl_variants @relation(fields: [variant_id], references: [variant_id])
+  item_product_price_at_time_purchase    Int
+  item_product_discount_at_time_purchase Int?
+  item_quantity                          Int
+  item_product_image                     String       @db.Text
+  item_product_name                      String
+  item_variant_name                      String
+  item_product_variant                   String
+  product_id                             String
+  tbl_products                           tbl_products @relation(fields: [product_id], references: [product_id])
+}
+
+// TABLE FOR CUSTOMER CARTS
+model tbl_cart {
+  cart_id            String       @id @unique @default(uuid())
+  product_id         String
+  tbl_products       tbl_products @relation(fields: [product_id], references: [product_id])
+  variant_id         String       @unique
+  tbl_variants       tbl_variants @relation(fields: [variant_id], references: [variant_id])
+  user_id            String
+  tbl_users          tbl_users    @relation(fields: [user_id], references: [user_id])
+  cart_item_quantity Int
+  cart_date_created  DateTime     @default(now())
+  cart_date_updated  DateTime     @updatedAt
+}
+
+// TABLE FOR CANCELLED ORDER
+model tbl_cancelled_order {
+  cancelled_order_id           String          @id @default(uuid())
+  order_id                     String          @unique
+  tbl_orders                   tbl_orders      @relation(fields: [order_id], references: [order_id])
+  cancelled_reason             CancelledReason
+  cancelled_order_date_created DateTime        @default(now())
+}
+
+// TABLE FOR REFUNDED ORDER
+model tbl_order_refund {
+  refund_id                    String            @id @default(uuid())
+  payment_id                   String            @unique
+  tbl_order_payment            tbl_order_payment @relation(fields: [payment_id], references: [payment_id])
+  refund_is_approved           Boolean           @default(false)
+  payment_refunded_amount      Int
+  payment_refunded_notes       String
+  payment_refunded_reason      RefundReason
+  payment_date_refunded        DateTime          @default(now())
+  payment_refund_date_approved DateTime?
+  payment_refund_date_denied   DateTime?
 }

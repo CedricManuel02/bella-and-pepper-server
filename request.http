@@ -1,25 +1,34 @@
 ###
 
-POST http://localhost:3000/login
+POST http://localhost:3001/login
 Content-Type: application/json
 
-{
-    "user_email": "cedricmanuel02@gmail.com",
-    "user_password": "cedric123"
+{   
+    "user_email": "admin@gmail.com",
+    "user_password": "admin123"
 }
 
 ###
 
-POST http://localhost:3000/register
+POST http://localhost:3001/register
 Content-Type: application/json
 
 {
-    "user_name": "Cedric Manuel",
-    "user_email": "cedricmanuel02@gmail.com",
-    "user_password": "cedric123"
+    "roles_id": "4fbfcd73-de39-11ef-894c-50ebf680728e",
+    "user_name": "Jane Doe",
+    "user_email": "janedoe@gmail.com",
+    "user_password": "janedoe123"
 }
 
 ###
 
-GET http://localhost:3000/user
+GET http://localhost:3001/user
 Authorization: Bearer 
+
+
+// CATEGORIES API ENDPOINT
+
+###
+
+GET http://localhost:3001/categories
+
