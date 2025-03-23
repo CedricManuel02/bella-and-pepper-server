@@ -13,6 +13,7 @@ import {
   loginAccountData,
   registerAccountData,
   resetPasswordAccountData,
+  updateAccountPasswordData,
 } from "../../data/account/index.js";
 import { setCookie } from "hono/cookie";
 import type { Context } from "hono";
@@ -108,14 +109,14 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
 
   const existingReset = await getResetTokenByUserIdData(user.user_id);
 
-  if(existingReset) {
+  if (existingReset) {
     const expires = new Date(existingReset.reset_token_expires_at.toString());
-    const now = new Date(Date.now())
-    if(now < expires){
+    const now = new Date(Date.now());
+    if (now < expires) {
       throw new BadRequestError("We already sent you a reset link, please check your email");
     }
-   const deleteToken = await deleteResetTokenData(existingReset.reset_token_id);
-   if(!deleteToken) throw new BadRequestError("Failed to delete token");
+    const deleteToken = await deleteResetTokenData(existingReset.reset_token_id);
+    if (!deleteToken) throw new BadRequestError("Failed to delete token");
   }
 
   const expires_at = new Date(Date.now() + 1000 * 60 * 60);
@@ -145,42 +146,50 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
   return sendEmail;
 }
 
-export async function resetPasswordService({new_password, confirm_password, reset_token} : {new_password : string, confirm_password: string, reset_token: string}){
+export async function resetPasswordService({
+  new_password,
+  confirm_password,
+  reset_token,
+}: {
+  new_password: string;
+  confirm_password: string;
+  reset_token: string;
+}) {
   if (!new_password || !confirm_password) throw new BadRequestError("Password is required");
 
-  if(!reset_token) throw new UnauthorizedError("Unauthorized");
+  if (!reset_token) throw new UnauthorizedError("Unauthorized");
 
   const verifyToken = await getVerificationTokenService(reset_token);
 
-  if(!verifyToken) throw new BadRequestError("Token not verified");
+  if (!verifyToken) throw new BadRequestError("Token not verified");
 
-  const resetToken = await getResetTokenData(verifyToken.reset_token_hash)
+  const resetToken = await getResetTokenData(verifyToken.reset_token_hash);
 
-  if(!resetToken) throw new BadRequestError("Token not found");
+  if (!resetToken) throw new BadRequestError("Token not found");
 
   const expires_at = new Date(resetToken.reset_token_expires_at.toString());
   const now = new Date(Date.now());
 
-  if(now > expires_at) {
+  if (now > expires_at) {
     await deleteResetTokenData(resetToken.reset_token_id);
     throw new BadRequestError("Link expired, please request another link");
   }
 
-  if (new_password.length < MIN_PASSWORD_LENGTH || confirm_password.length < MIN_PASSWORD_LENGTH) throw new BadRequestError("Password must be at least 8 characters long");
+  if (new_password.length < MIN_PASSWORD_LENGTH || confirm_password.length < MIN_PASSWORD_LENGTH)
+    throw new BadRequestError("Password must be at least 8 characters long");
 
   if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
   const hash_password = await bcrypt.hash(new_password, SALT_ROUND);
 
-  const updateAccount = await resetPasswordAccountData({new_password: hash_password, user_id: resetToken.user_id });
+  const updateAccount = await resetPasswordAccountData({ new_password: hash_password, user_id: resetToken.user_id });
 
-  if(!updateAccount) throw new BadRequestError("Failed to reset password");
+  if (!updateAccount) throw new BadRequestError("Failed to reset password");
 
   await deleteResetTokenData(resetToken.reset_token_id);
 
   return updateAccount;
 }
-
 
 export async function getVerificationTokenService(token: string) {
   if (!token) throw new BadRequestError("No token provided");
@@ -220,4 +229,37 @@ export async function getVerificationTokenService(token: string) {
   }
 
   return { reset_token_hash };
+}
+
+export async function resetProfilePasswordService({
+  user_id,
+  user_password,
+  new_password,
+  confirm_password,
+}: {
+  user_id: string,
+  user_password: string;
+  new_password: string;
+  confirm_password: string;
+}) {
+
+  if(!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
+
+  const user = await getUserData(user_id);
+
+  if(!user) throw new BadRequestError("User not found");
+
+  const hash_password = await bcrypt.hash(user_password, SALT_ROUND);
+
+  if(user.user_password !== hash_password) throw new BadRequestError("Password incorrect");
+
+  if(new_password !== confirm_password) throw new BadRequestError("Password mismatch");
+
+  const new_hash_password = await bcrypt.hash(new_password, SALT_ROUND);
+
+  const updatePasswordAccount = await updateAccountPasswordData({user_id: user.user_id, user_password: new_hash_password}); 
+
+  if(!updatePasswordAccount) throw new BadRequestError("Failed to change password, please try again");
+
+  return updatePasswordAccount;
 }

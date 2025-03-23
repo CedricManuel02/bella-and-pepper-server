@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { createForgotPasswordService, getAccountService, getVerificationTokenService, loginAccountService, registerAccountService, resetPasswordService, signOutAccountService } from "../../services/account/index.js";
+import { createForgotPasswordService, getAccountService, getVerificationTokenService, loginAccountService, registerAccountService, resetPasswordService, resetProfilePasswordService, signOutAccountService } from "../../services/account/index.js";
 import { StatusCodes } from "http-status-codes";
 import { deleteCookie, getCookie } from "hono/cookie";
 export async function loginAccountController(c: Context) {
@@ -62,4 +62,16 @@ export async function resetPasswordController(c: Context) {
   await resetPasswordService({new_password, confirm_password ,reset_token: token})
 
   return c.json({message: "Successfully change password", status: StatusCodes.CREATED});
+}
+
+export async function resetProfilePasswordController(c: Context) {
+  const {user_id} = await c.req.param();
+
+  const body = await c.req.json();
+
+  const {user_password, new_password, confirm_password} = body
+
+  await resetProfilePasswordService({user_id, user_password, new_password, confirm_password});
+
+  return c.json({message: "Successfully change password", status: StatusCodes.ACCEPTED});
 }
