@@ -10,6 +10,6 @@ const router = new Hono()
   .post("/auth/forgot-password", createForgotPasswordController)
   .get("/auth/verification-token/:token", getVerificationTokenController)
   .post("/auth/reset-password/:token", resetPasswordController)
-  .post("/auth/reset-profile-password/:user_id", authenticationMiddlewares, resetProfilePasswordController)
+  .post("/auth/reset-profile-password", authenticationMiddlewares, resetProfilePasswordController)
 
 export default router;
