@@ -1,11 +1,10 @@
-import type { Status } from "../utils/enum.js";
 
 export interface IAccount {
   roles?: string;
   user_name: string;
   user_email: string;
   user_password: string;
-  user_confirm_password?: string;
+  confirm_password?: string;
 }
 
 export interface ICategory {

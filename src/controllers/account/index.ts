@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { createForgotPasswordService, getAccountService, getVerificationTokenService, loginAccountService, registerAccountService, resetPasswordService, resetProfilePasswordService, signOutAccountService } from "../../services/account/index.js";
 import { StatusCodes } from "http-status-codes";
-import { deleteCookie, getCookie } from "hono/cookie";
+import { deleteCookie } from "hono/cookie";
 export async function loginAccountController(c: Context) {
   const { user_email, user_password } = await c.req.json();
 
