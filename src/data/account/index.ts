@@ -44,14 +44,27 @@ export async function registerAccountData({ user_email, user_name, user_password
   return user;
 }
 
-export async function resetPasswordAccountData({new_password, user_id}: {new_password: string, user_id: string}) {
+export async function updateAccountPasswordData({ user_id, user_password }: { user_id: string; user_password: string }) {
+  const user = await prisma.tbl_users.update({
+    data: {
+      user_password,
+    },
+    where: {
+      user_id,
+    },
+  });
+
+  return user;
+}
+
+export async function resetPasswordAccountData({ new_password, user_id }: { new_password: string; user_id: string }) {
   const user = await prisma.tbl_users.update({
     data: {
       user_password: new_password,
     },
     where: {
-      user_id
-    }
+      user_id,
+    },
   });
 
   return user;
@@ -78,7 +91,7 @@ export async function getUserByEmailData(user_email: string) {
 }
 
 export async function createResetTokenData({ reset_token_hash, user_id, reset_token_expires_at }: any) {
-  console.log(reset_token_hash, user_id, reset_token_expires_at)
+  console.log(reset_token_hash, user_id, reset_token_expires_at);
   const reset_token = await prisma.tbl_reset_token.create({
     data: {
       user_id,
@@ -101,7 +114,6 @@ export async function getResetTokenByUserIdData(user_id: string) {
 }
 
 export async function getResetTokenData(reset_token_hash: string) {
-
   const reset_token = await prisma.tbl_reset_token.findFirst({
     where: {
       reset_token_hash,
@@ -113,9 +125,9 @@ export async function getResetTokenData(reset_token_hash: string) {
 
 export async function deleteResetTokenData(reset_token_id: string) {
   const reset_token = await prisma.tbl_reset_token.delete({
-   where: {
-    reset_token_id
-   }
+    where: {
+      reset_token_id,
+    },
   });
 
   return reset_token;
