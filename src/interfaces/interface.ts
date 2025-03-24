@@ -4,6 +4,7 @@ export interface IAccount {
   user_name: string;
   user_email: string;
   user_password: string;
+  user_is_verified: string;
   confirm_password?: string;
 }
 

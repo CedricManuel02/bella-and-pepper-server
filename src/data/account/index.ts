@@ -20,10 +20,12 @@ export async function loginAccountData({ user_email, user_password }: { user_ema
     throw new BadRequestError("Invalid Credentials");
   }
 
+  if(user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
+
   return user;
 }
 
-export async function registerAccountData({ user_email, user_name, user_password }: IAccount) {
+export async function registerAccountData({ user_is_verified, user_email, user_name, user_password }: IAccount) {
   const user_exist = await prisma.tbl_users.findUnique({
     where: { user_email: user_email },
   });
@@ -35,10 +37,33 @@ export async function registerAccountData({ user_email, user_name, user_password
   const user = await prisma.tbl_users.create({
     data: {
       roles: "USER",
-      user_name: user_name,
-      user_email: user_email,
-      user_password: user_password,
+      user_name,
+      user_email,
+      user_password,
+      user_is_verified,
     },
+  });
+
+  return user;
+}
+
+export async function getUserByTokenData(confirm_token_hash: string) {
+  const user = await prisma.tbl_users.findFirst({
+    where: {
+      user_is_verified: confirm_token_hash
+    }
+  });
+
+  return user;
+}
+export async function deleteUserTokenData(user_id: string) {
+  const user = await prisma.tbl_users.update({
+    data: {
+      user_is_verified: null,
+    },
+    where: {
+      user_id
+    }
   });
 
   return user;

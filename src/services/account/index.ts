@@ -7,9 +7,11 @@ import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PRIVATE_KEY_PEM, PUBLIC_KEY_PEM, SALT
 import {
   createResetTokenData,
   deleteResetTokenData,
+  deleteUserTokenData,
   getResetTokenByUserIdData,
   getResetTokenData,
   getUserByEmailData,
+  getUserByTokenData,
   loginAccountData,
   registerAccountData,
   resetPasswordAccountData,
@@ -72,7 +74,6 @@ export async function signOutAccountService(user_id: string) {
 export async function registerAccountService(payload: IAccount) {
   const { user_name, user_email, user_password, confirm_password } = payload;
 
-
   if (!user_name || !user_email || !user_password) throw new BadRequestError("All fields are required");
 
   if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address");
@@ -83,10 +84,63 @@ export async function registerAccountService(payload: IAccount) {
 
   const hash_password = await bcrypt.hash(user_password, SALT_ROUND);
 
-  const registerData = await registerAccountData({ user_email, user_name, user_password: hash_password });
+  const user_is_verified = await sign(
+    {
+      sub: [user_email, new Date()],
+    },
+    process.env.APP_SECRET_KEY as string
+  );
+
+  const registerData = await registerAccountData({ user_is_verified, user_email, user_name, user_password: hash_password });
+
+  if (!registerData) throw new BadRequestError("Failed to create account");
+
+  const publicKey = await jose.importSPKI(PUBLIC_KEY_PEM, "RSA-OAEP-256");
+
+  const jwe = await new jose.CompactEncrypt(new TextEncoder().encode(user_is_verified))
+    .setProtectedHeader({ alg: "RSA-OAEP-256", enc: "A256GCM" })
+    .encrypt(publicKey);
+
+  const sendEmail = await createGmailSendingService(user_email, "CONFIRM_ACCOUNT", jwe);
+
+  if (!sendEmail) throw new BadRequestError("Failed to send you a link, please try again");
 
   return registerData;
 }
+
+export async function getVerificationEmailTokenServer(token:string) {
+  if (!token) throw new BadRequestError("No token provided");
+
+  const privateKey = await jose.importPKCS8(PRIVATE_KEY_PEM, "RSA-OAEP-256");
+
+  const { plaintext } = await jose.compactDecrypt(token, privateKey);
+
+  const decodedPayload = new TextDecoder().decode(plaintext);
+
+  const payloadBase64Url = decodedPayload.split(".")[1];
+  const padding = "=".repeat((4 - (payloadBase64Url.length % 4)) % 4);
+  const payloadBase64 = payloadBase64Url + padding;
+  const payloadJson = JSON.parse(atob(payloadBase64));
+
+  const confirm_token_hash = await sign(
+    {
+      sub: [payloadJson.sub[0], new Date(payloadJson.sub[1])],
+    },
+    process.env.APP_SECRET_KEY as string
+  );
+
+  const getUserIsVerified = await getUserByTokenData(confirm_token_hash);
+
+  if(!getUserIsVerified) throw new BadRequestError("Token not found");
+
+  const userIsVerified = await deleteUserTokenData(getUserIsVerified.user_id);
+
+  if(!userIsVerified) throw new BadRequestError("Failed to verified account");
+
+  return getUserIsVerified;
+}
+
+
 
 export async function getAccountService(user_id: string) {
   const user = getUserData(user_id);
@@ -239,29 +293,28 @@ export async function resetProfilePasswordService({
   new_password,
   confirm_password,
 }: {
-  user_id: string,
+  user_id: string;
   user_password: string;
   new_password: string;
   confirm_password: string;
 }) {
-
-  if(!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
+  if (!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
 
   const user = await getUserData(user_id);
 
-  if(!user) throw new BadRequestError("User not found");
+  if (!user) throw new BadRequestError("User not found");
 
   const password_match = await bcrypt.compare(user_password, user.user_password);
 
-  if(!password_match) throw new BadRequestError("Password mismatch");
+  if (!password_match) throw new BadRequestError("Password mismatch");
 
-  if(new_password !== confirm_password) throw new BadRequestError("Password mismatch");
+  if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
   const new_hash_password = await bcrypt.hash(new_password, SALT_ROUND);
 
-  const updatePasswordAccount = await updateAccountPasswordData({user_id: user.user_id, user_password: new_hash_password}); 
+  const updatePasswordAccount = await updateAccountPasswordData({ user_id: user.user_id, user_password: new_hash_password });
 
-  if(!updatePasswordAccount) throw new BadRequestError("Failed to change password, please try again");
+  if (!updatePasswordAccount) throw new BadRequestError("Failed to change password, please try again");
 
   return updatePasswordAccount;
 }

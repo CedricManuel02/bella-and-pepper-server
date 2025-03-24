@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 dotenv.config();
 
 const transporter = nodemailer.createTransport({
@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-transporter.verify(function ( error, success) {
+transporter.verify(function (error, success) {
   if (error) {
     console.log("This is error");
   } else {
@@ -41,7 +41,17 @@ export async function createGmailSendingService(to: string, type: string, token_
         <a href="${process.env.APP_FRONT_END_URL}/reset-password?token=${token_hash}" style="color: #4CAF50; text-decoration: none;">Reset Password</a>
       `;
       break;
-
+      case "CONFIRM_ACCOUNT":
+        subject = "Confirm your account – Welcome aboard!";
+        html = `
+          <p>Hello,</p>
+          <p>Thank you for registering with us! We're excited to have you on board.</p>
+          <p>To complete your registration, please confirm your account by clicking the link below:</p>
+          <p><a href="${process.env.APP_FRONT_END_URL}/confirm-account?token=${token_hash}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">Confirm Your Account</a></p>
+          <p>If you didn't sign up for an account with us, feel free to ignore this email.</p>
+          <p>Best regards,<br>Your team at ${process.env.APP_NAME}</p>
+        `;
+        break;
     default:
       throw new Error("Unknown email type");
   }
