@@ -140,8 +140,6 @@ export async function getVerificationEmailTokenServer(token:string) {
   return getUserIsVerified;
 }
 
-
-
 export async function getAccountService(user_id: string) {
   const user = getUserData(user_id);
 

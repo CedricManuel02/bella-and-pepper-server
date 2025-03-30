@@ -116,7 +116,6 @@ export async function getUserByEmailData(user_email: string) {
 }
 
 export async function createResetTokenData({ reset_token_hash, user_id, reset_token_expires_at }: any) {
-  console.log(reset_token_hash, user_id, reset_token_expires_at);
   const reset_token = await prisma.tbl_reset_token.create({
     data: {
       user_id,
