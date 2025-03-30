@@ -219,7 +219,7 @@ model tbl_rating_media {
 // TABLE FOR CUSTOMER ORDER STATUS TRACKING
 model tbl_order_status {
   order_status_id           String                    @id @unique @default(uuid())
-  order_id                  String                    @unique
+  order_id                  String                    
   tbl_orders                tbl_orders                @relation(fields: [order_id], references: [order_id])
   status                    Status
   order_status_date_created DateTime                  @default(now())
@@ -263,7 +263,7 @@ model tbl_order_payment {
   tbl_orders              tbl_orders         @relation(fields: [order_id], references: [order_id])
   payment_method          String?
   payment_unique_id       String?
-  payment_intent_id       String
+  payment_intent_id       String?
   payment_transaction_fee Int?
   payment_status          String             @default("PENDING")
   payment_date_paid       DateTime?

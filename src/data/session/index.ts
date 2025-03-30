@@ -28,6 +28,7 @@ export async function getSessionData({ user_id }: { user_id: string }) {
       user_id,
     },
   });
+
   return session;
 }
 

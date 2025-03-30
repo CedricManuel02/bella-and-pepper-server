@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { paymongoWebhookController } from "./index.js";
+import {stripeWebhookController } from "./index.js";
 
 const router = new Hono()
-.post("/paymongo/webhook", paymongoWebhookController)
+.post("/stripe/webhook", stripeWebhookController)
 
 export default router;

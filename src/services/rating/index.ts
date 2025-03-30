@@ -8,7 +8,7 @@ import { BadRequestError } from "../../utils/error.js";
 import { createFileService, validateFileService } from "../file/index.js";
 import { sendNotificationService } from "../notification/index.js";
 
-export async function createRatingService(payload: {variant_id: string, order_id: string, user_id: string, rating: any}){
+export async function createRatingService(payload: {variant_id: string, order_id: string, rating: any}){
 
     const {order_rating, order_rating_text} = payload.rating;
 
@@ -38,20 +38,23 @@ export async function createRatingService(payload: {variant_id: string, order_id
     if(!product) {
         throw new BadRequestError("Product not found");
     }
-    const user = await getUserData(payload.user_id);
 
-    if(!user) {
-        throw new BadRequestError("User not found");
-    }
-
-    const order = await getUserOrderData({order_id: payload.order_id, user_id: payload.user_id });
+    const order = await getUserOrderData({order_id: payload.order_id });
 
     if(!order) {
         throw new BadRequestError("Order not found");
     }
 
+    const user = await getUserData(order.user_id);
+
+    if(!user) {
+        throw new BadRequestError("User not found");
+    }
+
+  
+
     // CREATING RATING
-    const createRating = await createRatingProductData({order_rating: order_rating, order_rating_text: order_rating_text, order_id: payload.order_id, user_id: payload.user_id, product_id: variant.product_id, variant_id: variant.variant_id})
+    const createRating = await createRatingProductData({order_rating: order_rating, order_rating_text: order_rating_text, order_id: payload.order_id, user_id: user.user_id, product_id: variant.product_id, variant_id: variant.variant_id})
      
     if(!createRating) {
       throw new BadRequestError("Rating not created");
@@ -106,7 +109,7 @@ export async function createRatingService(payload: {variant_id: string, order_id
       throw new BadRequestError("Admin not found");
      }
 
-     const notificationService = sendNotificationService({action: "REVIEW", user_name: user.user_name, user_sender_id: user.user_id, user_receiver_id: admin_id, product_name: product.product_name });
+     const notificationService = sendNotificationService({action: "RATING", user_name: user.user_name, user_sender_id: user.user_id, user_receiver_id: admin_id, product_name: product.product_name });
 
      if(!notificationService) {
       throw new BadRequestError ("Failed to send notification");

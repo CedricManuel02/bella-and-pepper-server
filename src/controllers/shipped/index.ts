@@ -3,7 +3,9 @@ import { StatusCodes } from "http-status-codes";
 import { createShippedService } from "../../services/shipped/index.js";
 
 export async function createShippedController(c: Context) {
-  const { order_number, user_id } = c.req.param();
+  const { order_number } = c.req.param();
+
+  const user_id = c.get("user_id");
 
   const body = await c.req.parseBody();
 

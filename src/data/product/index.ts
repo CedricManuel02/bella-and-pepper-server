@@ -18,6 +18,9 @@ export async function getProductsData() {
       },
       tbl_rating: true,
     },
+    orderBy: {
+      product_name: "desc"
+    }
   });
 
   return products;
