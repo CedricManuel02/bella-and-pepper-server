@@ -5,6 +5,6 @@ import { fileUploadMiddleware } from "../../middlewares/file-upload-handler.js";
 
 const router = new Hono()
 .use("/auth/shipped", adminAuthenticationMiddlewares)
-.post("/auth/shipped/:order_number/:user_id", fileUploadMiddleware ,createShippedController)
+.post("/auth/shipped/:order_number", fileUploadMiddleware ,createShippedController)
 
 export default router;

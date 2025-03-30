@@ -16,13 +16,19 @@ interface JwtPayload {
 export async function userAuthenticationMiddlewares(c: Context, next: Next) {
   const session_token = getCookie(c, "auth__token");
 
-  if (!session_token) throw new UnauthorizedError("Unauthorized: No session token");
+  if (!session_token)
+    throw new UnauthorizedError("Unauthorized: No session token");
 
-  const _verify = await verify(session_token, process.env.APP_SECRET_KEY as string);
+  const _verify = await verify(
+    session_token,
+    process.env.APP_SECRET_KEY as string
+  );
 
   if (!_verify) throw new UnauthorizedError("Unauthorized token");
 
-  const { payload } = decode(session_token) as unknown as { payload: JwtPayload };
+  const { payload } = decode(session_token) as unknown as {
+    payload: JwtPayload;
+  };
 
   if (!payload || payload.role !== "USER") {
     throw new UnauthorizedError("Access denied: Insufficient privileges");
@@ -30,9 +36,12 @@ export async function userAuthenticationMiddlewares(c: Context, next: Next) {
 
   const session = await getSessionData({ user_id: payload.sub[1] });
 
-  if (!session) throw new BadRequestError("Session not found");
+  if (!session) {
+    throw new BadRequestError("Session not found");
+  }
 
-  if(session.session_token !== session_token) throw new BadRequestError("Unauthorized token can't find token");
+  if (session.session_token !== session_token)
+    throw new BadRequestError("Unauthorized token can't find token");
 
   const expires_at = new Date(session.session_expires_at);
 
@@ -49,10 +58,14 @@ export async function userAuthenticationMiddlewares(c: Context, next: Next) {
     process.env.APP_SECRET_KEY as string
   );
 
+  const updated_session = await updateSessionData({
+    session_id: session.session_id,
+    session_token: new_session_token,
+    extended_expires_at,
+  });
 
-  const updated_session = await updateSessionData({ session_id: session.session_id, session_token: new_session_token, extended_expires_at });
-
-  if (!updated_session) throw new BadRequestError("Failed to extend expires at");
+  if (!updated_session)
+    throw new BadRequestError("Failed to extend expires at");
 
   setCookie(c, "auth__token", new_session_token, {
     path: "/",
@@ -63,6 +76,6 @@ export async function userAuthenticationMiddlewares(c: Context, next: Next) {
   });
 
   c.set("user_id", session.user_id);
-
+  
   return await next();
 }

@@ -4,7 +4,7 @@ import { createRatingController } from "./index.js";
 import { fileUploadMiddleware } from "../../middlewares/file-upload-handler.js";
 
 const router = new Hono()
-.use("/auth/rating", userAuthenticationMiddlewares)
-.post("/auth/rating/:variant_id/:order_id/:user_id", fileUploadMiddleware, createRatingController)
+  .use("/auth/rating", userAuthenticationMiddlewares) 
+  .post("/auth/rating/product/:variant_id/:order_id", fileUploadMiddleware, createRatingController); 
 
 export default router;

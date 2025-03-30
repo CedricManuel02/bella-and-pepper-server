@@ -27,7 +27,7 @@ export async function createOrderData(payload: {
   information: IInformation;
   checkout: ICheckout[];
   location: ILocation;
-  payment_intent_id: string;
+  payment_unique_id: string;
   status: Status;
   user_id: string;
   order_number: string;
@@ -47,7 +47,7 @@ export async function createOrderData(payload: {
       order_policy_aggreement: payload.information.order_policy_aggreement,
       tbl_order_payment: {
         create: {
-          payment_intent_id: payload.payment_intent_id,
+          payment_unique_id: payload.payment_unique_id,
         },
       },
       tbl_order_information: {
@@ -136,10 +136,9 @@ export async function getUserOrdersData(payload: { user_id: string }) {
 
   return order;
 }
-export async function getUserOrderData(payload: { order_id: string; user_id: string }) {
+export async function getUserOrderData(payload: { order_id: string; }) {
   const order = await prisma.tbl_orders.findFirst({
     where: {
-      user_id: payload.user_id,
       order_id: payload.order_id,
     },
     include: {
@@ -192,11 +191,11 @@ export async function geOrderItemData(payload: { order_id: string }) {
 
   return order;
 }
-export async function getOrderByPaymentIntentData(payload: { payment_intent_id: string }) {
+export async function getOrderByPaymentIntentData(payload: { payment_unique_id: string }) {
   const order = await prisma.tbl_orders.findFirst({
     where: {
       tbl_order_payment: {
-        payment_intent_id: payload.payment_intent_id,
+        payment_unique_id: payload.payment_unique_id,
       },
     },
     include: {
@@ -227,34 +226,35 @@ export async function updateOrderData(payload: {
   payment_status: string;
   payment_date_paid: Date;
   payment_method: string;
-  status: Status;
-  payment_unique_id: string;
-  payment_transaction_fee: number;
+  payment_intent_id: string;
 }) {
+
   const order = await prisma.tbl_orders.update({
     where: {
       order_id: payload.order_id,
     },
     data: {
+      // Update the order payment details
       tbl_order_payment: {
         update: {
+          payment_intent_id: payload.payment_intent_id,
           payment_method: payload.payment_method,
           payment_status: payload.payment_status,
-          payment_unique_id: payload.payment_unique_id,
-          payment_transaction_fee: payload.payment_transaction_fee,
           payment_date_paid: payload.payment_date_paid,
         },
       },
       tbl_order_status: {
-        create: {
-          status: payload.status,
-        },
+          create: {
+            status: "PAID", 
+          },
       },
     },
     include: {
       tbl_order_payment: true,
+      tbl_order_status: true, 
     },
   });
+
   return order;
 }
 

@@ -55,7 +55,6 @@ export async function createProductService(payload: any) {
       }
   }
 
-
   const _payload = {
     category_id: payload.product_category,
     product_upc_number: payload.product_upc,
