@@ -1,10 +1,11 @@
 import type { CancelledReason } from "@prisma/client";
 import { getAdminAccountData } from "../../data/account/index.js";
 import { createCancelledOrderData } from "../../data/cancelled-order/index.js";
-import { createOrderStatusData, geOrderItemData, getAllOrdersData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
+import { createOrderStatusData, deleteOrderData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
 import { getUserData } from "../../data/user/index.js";
 import { BadRequestError } from "../../utils/error.js";
 import { sendNotificationService } from "../notification/index.js";
+import { expiredStripeCheckoutSessionLink } from "../../utils/payment.js";
 
 export async function getAllOrdersService() {
   const orders = await getAllOrdersData();
@@ -47,7 +48,7 @@ export async function getOrderService(payload: { order_id: string; user_id: stri
     throw new BadRequestError("User not found");
   }
 
-  const order = await getUserOrderData({ order_id: payload.order_id, user_id: user.user_id });
+  const order = await getUserOrderData({ order_id: payload.order_id });
 
   if (!order) {
     throw new BadRequestError("Order not found");
@@ -80,7 +81,7 @@ export async function receivedOrderService(payload: { order_id: string; user_id:
     throw new BadRequestError("User not found");
   }
 
-  const order = await getUserOrderData({ order_id: payload.order_id, user_id: payload.user_id });
+  const order = await getUserOrderData({ order_id: payload.order_id });
 
   if (!order) {
     throw new BadRequestError("Order not found");
@@ -126,7 +127,7 @@ export async function cancelledOrderService({ order_id, user_id, reason }: { ord
 
   if (!user) throw new BadRequestError("User not found");
 
-  const order = await getUserOrderData({ order_id, user_id });
+  const order = await getUserOrderData({ order_id });
 
   if (!order) throw new BadRequestError("Order not found");
 
@@ -144,4 +145,20 @@ export async function cancelledOrderService({ order_id, user_id, reason }: { ord
 
 // add webhook refund 
   return createCancelledOrderData;
+}
+
+export async function deleteOrderService({session_id, user_id}: {session_id: string, user_id: string}) {
+  if(!session_id || !user_id) throw new BadRequestError(session_id ? "Session is required" : "User ID is required");
+
+  const session = await getOrderByPaymentIntentData({payment_unique_id: session_id});
+
+  if(!session) throw new BadRequestError("Checkout session not found");
+
+  const orderDelete = await deleteOrderData({order_id: session.order_id, user_id});
+
+  if(!orderDelete) throw new BadRequestError("Failed to delete order");
+
+  await expiredStripeCheckoutSessionLink({checkout_session: session_id});
+
+  return orderDelete;
 }

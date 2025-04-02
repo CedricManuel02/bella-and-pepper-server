@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { BadRequestError, UnauthorizedError } from "../utils/error.js";
 import { decode, sign, verify } from "hono/jwt";
 import dotenv from "dotenv";
-import { getCookie, setCookie } from "hono/cookie";
+import { getCookie } from "hono/cookie";
 import { getSessionData, updateSessionData } from "../data/session/index.js";
 
 dotenv.config();
@@ -51,14 +51,6 @@ export async function adminAuthenticationMiddlewares(c: Context, next: Next) {
   const updated_session = await updateSessionData({ session_id: session.session_id, session_token: new_session_token, extended_expires_at });
 
   if (!updated_session) throw new BadRequestError("Failed to extend expires at");
-
-  setCookie(c, "auth__token", new_session_token, {
-    path: "/",
-    secure: true,
-    httpOnly: true,
-    sameSite: "Strict",
-    expires: expires_at,
-  });
 
   c.set("user_id", session.user_id);
 

@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { StatusCodes } from "http-status-codes";
 import {
   cancelledOrderService,
+  deleteOrderService,
   getAllOrdersService,
   getOrderItemService,
   getOrderService,
@@ -46,7 +47,6 @@ export async function createOrderCancellationController(c: Context) {
 
   const user_id = c.get("user_id");
 
-
   const body = await c.req.json();
 
   return c.json({
@@ -87,6 +87,21 @@ export async function cancelledOrderController(c: Context) {
 
   return c.json({
     message: "Successfully cancelled order",
+    status: StatusCodes.ACCEPTED,
+  });
+}
+export async function deleteOrderController(c: Context) {
+  const { session_id } = await c.req.param();
+
+  const user_id = c.get("user_id");
+
+  await deleteOrderService({
+    session_id,
+    user_id
+  });
+
+  return c.json({
+    message: "Successfully delete order",
     status: StatusCodes.ACCEPTED,
   });
 }
