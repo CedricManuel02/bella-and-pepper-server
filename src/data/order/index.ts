@@ -285,41 +285,107 @@ export async function deleteOrderData({ order_id, user_id }: { order_id: string;
     where: {
       order_id,
       user_id,
-    }
+    },
   });
 
-  if(!order) throw new BadRequestError("Order not found");
+  if (!order) throw new BadRequestError("Order not found");
 
   await prisma.tbl_items.deleteMany({
     where: {
       order_id: order.order_id,
-    }
+    },
   });
 
   await prisma.tbl_order_status.deleteMany({
     where: {
       order_id: order.order_id,
-    }
-  })
+    },
+  });
 
   await prisma.tbl_order_information.deleteMany({
     where: {
       order_id: order.order_id,
-    }
-  })
+    },
+  });
 
   await prisma.tbl_order_payment.deleteMany({
     where: {
       order_id: order.order_id,
-    }
-  })
+    },
+  });
 
   await prisma.tbl_orders.delete({
     where: {
       order_id,
-      user_id
-    }
-  })
+      user_id,
+    },
+  });
+
+  return order;
+}
+
+export async function getPlacedOrdersNotPaidData() {
+  const orders = await prisma.tbl_orders.findMany({
+    where: {
+      tbl_order_status: {
+        some: {
+          status: "PLACED_ORDER",
+        },
+        none: {
+          status: "PAID",
+        },
+      },
+    },
+    include: {
+      tbl_order_status: true,
+      tbl_order_payment: true,
+    },
+  });
+
+  return orders;
+}
+
+export async function deletePlacedOrderNotPaidData({ order_id }: { order_id: string }) {
+
+  const order = await prisma.tbl_orders.findFirst({
+    where: {
+      order_id,
+    },
+  });
+
+  if (!order) throw new BadRequestError("Order not found");
+
+  await prisma.tbl_items.deleteMany({
+    where: {
+      order_id: order.order_id,
+    },
+  });
+
+  await prisma.tbl_order_status.deleteMany({
+    where: {
+      order_id: order.order_id,
+    },
+  });
+
+  await prisma.tbl_order_information.deleteMany({
+    where: {
+      order_id: order.order_id,
+    },
+  });
+
+  await prisma.tbl_order_payment.deleteMany({
+    where: {
+      order_id: order.order_id,
+    },
+  });
+
+  await prisma.tbl_orders.delete({
+    where: {
+      order_id,
+    },
+  });
+
+
 
   return order;
 }

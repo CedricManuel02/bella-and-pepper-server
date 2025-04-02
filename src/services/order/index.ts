@@ -1,7 +1,7 @@
 import type { CancelledReason } from "@prisma/client";
 import { getAdminAccountData } from "../../data/account/index.js";
 import { createCancelledOrderData } from "../../data/cancelled-order/index.js";
-import { createOrderStatusData, deleteOrderData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
+import { createOrderStatusData, deleteOrderData, deletePlacedOrderNotPaidData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getPlacedOrdersNotPaidData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
 import { getUserData } from "../../data/user/index.js";
 import { BadRequestError } from "../../utils/error.js";
 import { sendNotificationService } from "../notification/index.js";
@@ -146,7 +146,7 @@ export async function cancelledOrderService({ order_id, user_id, reason }: { ord
 // add webhook refund 
   return createCancelledOrderData;
 }
-
+// DELETE ORDER SERVICE (USED FOR CANCELLED ORDER CHECKOUT AND RUN AN EXPIRATION FUNCTION)
 export async function deleteOrderService({session_id, user_id}: {session_id: string, user_id: string}) {
   if(!session_id || !user_id) throw new BadRequestError(session_id ? "Session is required" : "User ID is required");
 
@@ -161,4 +161,26 @@ export async function deleteOrderService({session_id, user_id}: {session_id: str
   await expiredStripeCheckoutSessionLink({checkout_session: session_id});
 
   return orderDelete;
+}
+
+// DELETE ORDER CONTROLLER (USED FOR CRON JOB TO CHECK IF THE ORDER IS IDLE FOR TOO LONG)
+export async function deleteOrderCronJobService() {
+  const current_date = new Date();
+  const one_hour_ago = new Date(current_date.getTime() - 60 * 60 * 1000); 
+
+  const orders_not_paid = await getPlacedOrdersNotPaidData();
+
+  if(orders_not_paid) {
+    for(let i = 0; i < orders_not_paid.length; i++) {
+      const order = orders_not_paid[i];
+
+      const order_date_created = new Date(order.order_date_created);
+
+      if(order_date_created < one_hour_ago) {
+        await deletePlacedOrderNotPaidData({order_id: order.order_id});
+        console.log(`ORDER ${order.order_id} has been deleted due to inactivity`);
+        await expiredStripeCheckoutSessionLink({checkout_session: order.tbl_order_payment?.payment_unique_id as string});
+      }
+    }
+  }
 }

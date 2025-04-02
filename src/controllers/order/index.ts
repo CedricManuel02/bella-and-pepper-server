@@ -9,6 +9,7 @@ import {
   getOrdersService,
   receivedOrderService,
 } from "../../services/order/index.js";
+import { getAllOrdersData } from "../../data/order/index.js";
 
 // GET ALL ORDER
 export async function getAllOrdersController(c: Context) {
@@ -54,9 +55,7 @@ export async function createOrderCancellationController(c: Context) {
     status: StatusCodes.OK,
   });
 }
-
 // ? ORDER ACTION SUCH AS RECEIVED , SHIPPED , CANCELLED
-
 // RECEIVED ORDER CONTROLLER
 export async function receivedOrderController(c: Context) {
   const { order_id } = await c.req.param();
@@ -70,7 +69,6 @@ export async function receivedOrderController(c: Context) {
     status: StatusCodes.OK,
   });
 }
-
 // CANCELLED ORDER CONTROLLER
 export async function cancelledOrderController(c: Context) {
   const { order_id } = await c.req.param();
@@ -90,6 +88,8 @@ export async function cancelledOrderController(c: Context) {
     status: StatusCodes.ACCEPTED,
   });
 }
+
+// DELETE ORDER CONTROLLER (USED FOR CANCELLED ORDER CHECKOUT AND RUN AN EXPIRATION FUNCTION)
 export async function deleteOrderController(c: Context) {
   const { session_id } = await c.req.param();
 
@@ -105,3 +105,4 @@ export async function deleteOrderController(c: Context) {
     status: StatusCodes.ACCEPTED,
   });
 }
+
