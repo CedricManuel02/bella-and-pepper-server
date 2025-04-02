@@ -5,6 +5,9 @@ const prisma = new PrismaClient();
 export async function getNotificationsData(payload: {user_id: string}) {
   const notifications = await prisma.tbl_notifications.findMany({
     where: {user_receiver_id: payload.user_id},
+    orderBy: {
+      notifications_date_created: "desc"
+    }
   });
 
   return notifications;

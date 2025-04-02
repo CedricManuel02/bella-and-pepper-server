@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 export async function getCartsData(payload: {user_id: string;}){
-    const cart = await prisma.tbl_cart.findMany({where: {user_id: payload.user_id}, include: {
+    const cart = await prisma.tbl_cart.findMany({where: {user_id: payload.user_id}, orderBy: {cart_date_created: "desc"}, include: {
         tbl_products: true,
         tbl_variants: {
             include: {

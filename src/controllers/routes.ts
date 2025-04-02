@@ -10,6 +10,7 @@ import OrderRoutes from "./order/routes.js";
 import ShippedRoutes from "./shipped/routes.js";
 import NotificationRoutes from "./notification/routes.js";
 import RatingRoutes from "./rating/routes.js";
+import DashboardRoutes from "./dashboard/routes.js";
 
 export const routes = [
   AccountRoutes,
@@ -23,7 +24,8 @@ export const routes = [
   OrderRoutes,
   ShippedRoutes,
   NotificationRoutes,
-  RatingRoutes
+  RatingRoutes,
+  DashboardRoutes
 ] as const;
 
 export type AppRoutes = (typeof routes)[number];

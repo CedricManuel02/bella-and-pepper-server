@@ -27,33 +27,34 @@ export async function checkoutStripePayment(payload: { shipping_fee_rate: number
     line_items: lineItems,
     mode: "payment",
     shipping_options: [
-    {
-      shipping_rate_data: {
-        type: 'fixed_amount',
-        fixed_amount: {
-          amount: payload.shipping_fee_rate * 100,
-          currency: 'php',
-        },
-        display_name: 'Shipping Fee',
-        delivery_estimate: {
-          minimum: {
-            unit: 'business_day',
-            value: 5,
+      {
+        shipping_rate_data: {
+          type: "fixed_amount",
+          fixed_amount: {
+            amount: payload.shipping_fee_rate * 100,
+            currency: "php",
           },
-          maximum: {
-            unit: 'business_day',
-            value: 7,
+          display_name: "Shipping Fee",
+          delivery_estimate: {
+            minimum: {
+              unit: "business_day",
+              value: 5,
+            },
+            maximum: {
+              unit: "business_day",
+              value: 7,
+            },
           },
         },
       },
-    }],
+    ],
     success_url: `${process.env.APP_FRONT_END_URL}/payment/success`,
     cancel_url: `${process.env.APP_FRONT_END_URL}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
   });
 
   if (session.url) {
     // await getStripePaymentIntent({ session_id: session.id });
-    return {session: session, checkout_url: session.url};
+    return { session: session, checkout_url: session.url };
   } else {
     throw new BadRequestError("Failed to create checkout session");
   }
@@ -68,5 +69,18 @@ export async function getStripePaymentIntent(payload: { session_id: string }) {
   const list = await stripe.checkout.sessions.listLineItems(payload.session_id);
 
   return session;
+}
 
+// GET EXPIRED THE CHECKOUT SESSION
+export async function expiredStripeCheckoutSessionLink({checkout_session}:{checkout_session: string}) {
+  try {
+    const session = await stripe.checkout.sessions.expire(checkout_session);
+    
+    if(!session) throw new BadRequestError("Failed to expired the link");
+
+    return session;
+  } catch (error) {
+    console.error("Something went wrong while expiring the checkout session link:", error);
+    throw new BadRequestError("Something went wrong while expiring the checkout session link");
+  }
 }

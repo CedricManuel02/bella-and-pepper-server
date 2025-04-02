@@ -55,14 +55,6 @@ export async function createCheckoutService(
     throw new BadRequestError("Pin location of delivery location is required");
   }
 
-  // const checkoutPaymongo = await checkoutPaymongoPayment({
-  //   shipping_fee_rate: validatedInformation.shipping_fee_rate,
-  //   checkout: payload.checkout,
-  // });
-
-  // if (!checkoutPaymongo) {
-  //   throw new BadRequestError("Failed to checkout payment");
-  // }
 
   const stripe = await checkoutStripePayment({
     shipping_fee_rate: validatedInformation.shipping_fee_rate,

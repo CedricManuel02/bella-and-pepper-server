@@ -13,7 +13,7 @@ export async function webhookStripeServices(payload: any) {
       throw new BadRequestError("Failed to process webhook");
   }
 }
-
+// STRIPE WEBHOOK CHECKOUT SUCCESS
 export async function stripeWebhookCheckoutSuccess(payload: any) {
   const payment_unique_id = payload.id;
   const payment_intent_id = payload.payment_intent;

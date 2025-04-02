@@ -1,11 +1,21 @@
 import { PrismaClient } from "@prisma/client";
 import type { ICheckout, IInformation, ILocation } from "../../interfaces/interface.js";
 import type { Status } from "../../utils/enum.js";
+import { BadRequestError } from "../../utils/error.js";
 
 const prisma = new PrismaClient();
 
 export async function getAllOrdersData() {
   const orders = await prisma.tbl_orders.findMany({
+    where: {
+      tbl_order_status: {
+        some: {
+          status: {
+            not: "PLACED_ORDER",
+          },
+        },
+      },
+    },
     orderBy: { order_date_created: "desc" },
     include: {
       tbl_items: true,
@@ -117,6 +127,13 @@ export async function getUserOrdersData(payload: { user_id: string }) {
   const order = await prisma.tbl_orders.findMany({
     where: {
       user_id: payload.user_id,
+      tbl_order_status: {
+        some: {
+          status: {
+            not: "PLACED_ORDER",
+          },
+        },
+      },
     },
     orderBy: {
       order_date_created: "desc",
@@ -128,7 +145,7 @@ export async function getUserOrdersData(payload: { user_id: string }) {
       tbl_order_status: {
         orderBy: {
           order_status_date_created: "desc",
-        }
+        },
       },
       tbl_shipping_fee: true,
     },
@@ -136,7 +153,7 @@ export async function getUserOrdersData(payload: { user_id: string }) {
 
   return order;
 }
-export async function getUserOrderData(payload: { order_id: string; }) {
+export async function getUserOrderData(payload: { order_id: string }) {
   const order = await prisma.tbl_orders.findFirst({
     where: {
       order_id: payload.order_id,
@@ -149,7 +166,7 @@ export async function getUserOrderData(payload: { order_id: string; }) {
       tbl_order_status: {
         orderBy: {
           order_status_date_created: "desc",
-        }
+        },
       },
       tbl_cancelled_order: true,
       tbl_rating: true,
@@ -209,9 +226,9 @@ export async function getOrderByPaymentIntentData(payload: { payment_unique_id: 
 export async function getOrderByPaymentIdData({ payment_id }: { payment_id: string }) {
   const order = await prisma.tbl_orders.findFirst({
     where: {
-      tbl_order_payment: { 
-        payment_unique_id: payment_id
-       },
+      tbl_order_payment: {
+        payment_unique_id: payment_id,
+      },
     },
     include: {
       tbl_order_payment: true,
@@ -228,7 +245,6 @@ export async function updateOrderData(payload: {
   payment_method: string;
   payment_intent_id: string;
 }) {
-
   const order = await prisma.tbl_orders.update({
     where: {
       order_id: payload.order_id,
@@ -244,14 +260,14 @@ export async function updateOrderData(payload: {
         },
       },
       tbl_order_status: {
-          create: {
-            status: "PAID", 
-          },
+        create: {
+          status: "PAID",
+        },
       },
     },
     include: {
       tbl_order_payment: true,
-      tbl_order_status: true, 
+      tbl_order_status: true,
     },
   });
 
@@ -261,5 +277,49 @@ export async function updateOrderData(payload: {
 // CREATE ORDER STATUS DATA
 export async function createOrderStatusData({ status, order_id }: { status: Status; order_id: string }) {
   const order = await prisma.tbl_order_status.create({ data: { order_id: order_id, status: status } });
+  return order;
+}
+
+export async function deleteOrderData({ order_id, user_id }: { order_id: string; user_id: string }) {
+  const order = await prisma.tbl_orders.findFirst({
+    where: {
+      order_id,
+      user_id,
+    }
+  });
+
+  if(!order) throw new BadRequestError("Order not found");
+
+  await prisma.tbl_items.deleteMany({
+    where: {
+      order_id: order.order_id,
+    }
+  });
+
+  await prisma.tbl_order_status.deleteMany({
+    where: {
+      order_id: order.order_id,
+    }
+  })
+
+  await prisma.tbl_order_information.deleteMany({
+    where: {
+      order_id: order.order_id,
+    }
+  })
+
+  await prisma.tbl_order_payment.deleteMany({
+    where: {
+      order_id: order.order_id,
+    }
+  })
+
+  await prisma.tbl_orders.delete({
+    where: {
+      order_id,
+      user_id
+    }
+  })
+
   return order;
 }
