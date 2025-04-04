@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import {
   cancelledOrderService,
   deleteOrderService,
+  generateSalesReportService,
   getAllOrdersService,
   getOrderItemService,
   getOrderService,
@@ -106,3 +107,17 @@ export async function deleteOrderController(c: Context) {
   });
 }
 
+// GENERATE SALES REPORT CONTROLLER
+export async function generateSalesReportController(c: Context) {
+  const body = await c.req.json();
+
+  const { start_date, end_date } = body;
+
+  const data = await generateSalesReportService({start_date, end_date});
+
+  return c.json({
+    data,
+    message: "Successfully generated sales report",
+    status: StatusCodes.OK,
+  });
+}
