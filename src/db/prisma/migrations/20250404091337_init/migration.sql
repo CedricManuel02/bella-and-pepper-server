@@ -61,7 +61,7 @@ CREATE TABLE `tbl_reset_token` (
 CREATE TABLE `tbl_session` (
     `session_id` VARCHAR(191) NOT NULL,
     `user_id` VARCHAR(191) NOT NULL,
-    `session_token` VARCHAR(191) NOT NULL,
+    `session_token` TEXT NOT NULL,
     `session_expires_at` DATETIME(3) NOT NULL,
     `session_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `session_date_updated` DATETIME(3) NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE `tbl_notifications` (
     `notifications_body` VARCHAR(191) NOT NULL,
     `notifications_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `notifications_read` BOOLEAN NOT NULL DEFAULT false,
-    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING') NOT NULL,
+    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED') NOT NULL,
     `user_sender_id` VARCHAR(191) NULL,
     `user_receiver_id` VARCHAR(191) NOT NULL,
     `order_id` VARCHAR(191) NULL,
@@ -172,11 +172,10 @@ CREATE TABLE `tbl_rating_media` (
 CREATE TABLE `tbl_order_status` (
     `order_status_id` VARCHAR(191) NOT NULL,
     `order_id` VARCHAR(191) NOT NULL,
-    `status` ENUM('ADMIN', 'USER') NOT NULL,
+    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED') NOT NULL,
     `order_status_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `tbl_order_status_order_status_id_key`(`order_status_id`),
-    UNIQUE INDEX `tbl_order_status_order_id_key`(`order_id`),
     PRIMARY KEY (`order_status_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -212,7 +211,7 @@ CREATE TABLE `tbl_order_payment` (
     `order_id` VARCHAR(191) NOT NULL,
     `payment_method` VARCHAR(191) NULL,
     `payment_unique_id` VARCHAR(191) NULL,
-    `payment_intent_id` VARCHAR(191) NOT NULL,
+    `payment_intent_id` VARCHAR(191) NULL,
     `payment_transaction_fee` INTEGER NULL,
     `payment_status` VARCHAR(191) NOT NULL DEFAULT 'PENDING',
     `payment_date_paid` DATETIME(3) NULL,

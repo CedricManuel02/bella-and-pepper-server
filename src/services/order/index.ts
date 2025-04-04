@@ -1,12 +1,13 @@
 import type { CancelledReason } from "@prisma/client";
-import { getAdminAccountData } from "../../data/account/index.js";
-import { createCancelledOrderData } from "../../data/cancelled-order/index.js";
-import { createOrderStatusData, deleteOrderData, deletePlacedOrderNotPaidData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getPlacedOrdersNotPaidData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
 import { getUserData } from "../../data/user/index.js";
 import { BadRequestError } from "../../utils/error.js";
+import { getAdminAccountData } from "../../data/account/index.js";
 import { sendNotificationService } from "../notification/index.js";
 import { expiredStripeCheckoutSessionLink } from "../../utils/payment.js";
+import { createCancelledOrderData } from "../../data/cancelled-order/index.js";
+import { createOrderStatusData, deleteOrderData, deletePlacedOrderNotPaidData, generateSalesReportData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getPlacedOrdersNotPaidData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
 
+// GET ALL ORDERS (ADMIN REQUEST)
 export async function getAllOrdersService() {
   const orders = await getAllOrdersData();
 
@@ -16,7 +17,7 @@ export async function getAllOrdersService() {
 
   return orders;
 }
-
+// GET ALL ORDERS OF USER (USER REQUEST)
 export async function getOrdersService(payload: { user_id: string }) {
   if (!payload.user_id) {
     throw new BadRequestError("User id is required");
@@ -36,7 +37,7 @@ export async function getOrdersService(payload: { user_id: string }) {
 
   return order;
 }
-
+// GET SINGLE ORDER SERVICE (USER REQUEST)
 export async function getOrderService(payload: { order_id: string; user_id: string }) {
   if (!payload.user_id) {
     throw new BadRequestError("User id is required");
@@ -56,20 +57,17 @@ export async function getOrderService(payload: { order_id: string; user_id: stri
 
   return order;
 }
-
+// GET SINGLE ORDER SERVICE (ADMIN REQUEST)
 export async function getOrderItemService(payload: { order_id: string }) {
-  if (!payload.order_id) {
-    throw new BadRequestError("Order ID is required");
-  }
+  if (!payload.order_id) throw new BadRequestError("Order ID is required");
+  
   const order = await geOrderItemData({ order_id: payload.order_id });
 
-  if (!order) {
-    throw new BadRequestError("Order not found");
-  }
+  if (!order) throw new BadRequestError("Order not found");
 
   return order;
 }
-
+// RECEIVED ORDER SERVICE
 export async function receivedOrderService(payload: { order_id: string; user_id: string }) {
   if (!payload.order_id) {
     throw new BadRequestError("Order is required");
@@ -114,9 +112,7 @@ export async function receivedOrderService(payload: { order_id: string; user_id:
 
   return updateOrderReceived;
 }
-
-// CANCELLED ORDER SERVICE
-
+// CANCELLED ORDER SERVICE 
 export async function cancelledOrderService({ order_id, user_id, reason }: { order_id: string; user_id: string; reason: CancelledReason }) {
     
   if (!order_id) throw new BadRequestError("Order is required");
@@ -162,7 +158,6 @@ export async function deleteOrderService({session_id, user_id}: {session_id: str
 
   return orderDelete;
 }
-
 // DELETE ORDER CONTROLLER (USED FOR CRON JOB TO CHECK IF THE ORDER IS IDLE FOR TOO LONG)
 export async function deleteOrderCronJobService() {
   const current_date = new Date();
@@ -183,4 +178,18 @@ export async function deleteOrderCronJobService() {
       }
     }
   }
+}
+
+
+// GENERATE SALES REPORT SERVICE
+export async function generateSalesReportService({start_date, end_date}: { start_date: string; end_date: string }) {
+  if (!start_date || !end_date) throw new BadRequestError("Start date and end date are required");
+
+  const salesReport = await generateSalesReportData({ start_date: new Date(start_date), end_date: new Date(end_date) });
+
+  if (!salesReport) throw new BadRequestError("Failed to generate sales report");
+
+  if (salesReport.length === 0) throw new BadRequestError("No sales report found for the given date range");
+
+  return salesReport;
 }

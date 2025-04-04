@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE `tbl_notifications` MODIFY `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED') NOT NULL;

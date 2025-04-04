@@ -389,3 +389,30 @@ export async function deletePlacedOrderNotPaidData({ order_id }: { order_id: str
 
   return order;
 }
+
+
+export async function generateSalesReportData({ start_date, end_date }: { start_date: Date; end_date: Date }) {
+  const orders = await prisma.tbl_orders.findMany({
+    where: {
+      order_date_created: {
+        gte: start_date,
+        lte: end_date,
+      },
+      tbl_order_status: {
+        some: {
+          status: "PAID",
+        },
+      },
+    },
+    include: {
+      tbl_order_payment: true,
+      tbl_items: true,
+      tbl_users: true,
+    },
+    orderBy: {
+      order_date_created: "desc",
+    }
+  });
+
+  return orders;
+}
