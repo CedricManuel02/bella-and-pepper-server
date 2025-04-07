@@ -3,9 +3,10 @@ import bcrypt from "bcrypt";
 import { sign } from "hono/jwt";
 import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
 import type { IAccount } from "../../interfaces/interface.js";
-import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PRIVATE_KEY_PEM, PUBLIC_KEY_PEM, SALT_ROUND } from "../../constant/constant.js";
+import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, PRIVATE_KEY_PEM, PUBLIC_KEY_PEM, SALT_ROUND } from "../../constant/constant.js";
 import {
   createResetTokenData,
+  deleteImageProfileData,
   deleteResetTokenData,
   deleteUserTokenData,
   getResetTokenByUserIdData,
@@ -16,6 +17,7 @@ import {
   registerAccountData,
   resetPasswordAccountData,
   updateAccountPasswordData,
+  updateProfileData,
 } from "../../data/account/index.js";
 import { setCookie } from "hono/cookie";
 import type { Context } from "hono";
@@ -24,6 +26,7 @@ import { getUserData } from "../../data/user/index.js";
 import { createGmailSendingService } from "../../utils/send-email.js";
 
 import * as jose from "jose";
+import { createFileService, deleteFileService, formatFileService, validateFileService } from "../file/index.js";
 dotenv.config();
 
 export async function loginAccountService({ user_email, user_password, c }: { user_email: string; user_password: string; c: Context }) {
@@ -108,7 +111,7 @@ export async function registerAccountService(payload: IAccount) {
   return registerData;
 }
 
-export async function getVerificationEmailTokenServer(token:string) {
+export async function getVerificationEmailTokenServer(token: string) {
   if (!token) throw new BadRequestError("No token provided");
 
   const privateKey = await jose.importPKCS8(PRIVATE_KEY_PEM, "RSA-OAEP-256");
@@ -131,11 +134,11 @@ export async function getVerificationEmailTokenServer(token:string) {
 
   const getUserIsVerified = await getUserByTokenData(confirm_token_hash);
 
-  if(!getUserIsVerified) throw new BadRequestError("Token not found");
+  if (!getUserIsVerified) throw new BadRequestError("Token not found");
 
   const userIsVerified = await deleteUserTokenData(getUserIsVerified.user_id);
 
-  if(!userIsVerified) throw new BadRequestError("Failed to verified account");
+  if (!userIsVerified) throw new BadRequestError("Failed to verified account");
 
   return getUserIsVerified;
 }
@@ -315,4 +318,72 @@ export async function resetProfilePasswordService({
   if (!updatePasswordAccount) throw new BadRequestError("Failed to change password, please try again");
 
   return updatePasswordAccount;
+}
+
+export async function updateProfileService({ user_id, account }: { user_id: string; account: any }) {
+  if (!user_id) throw new BadRequestError("User ID not found");
+
+  const user = await getUserData(user_id);
+
+  if (!user) throw new BadRequestError("User not found");
+
+  if (!account.user_name) throw new BadRequestError("User name is required");
+
+  if (account.user_phone && !PH_PHONE_REGEX.test(account.user_phone)) {
+    throw new BadRequestError("Invalid phone number format");
+  }
+
+  if (account.user_profile && account.user_profile instanceof File) {
+    await validateFileService({ image: account.user_profile });
+
+    const uploadFile = await createFileService({
+      image: account.user_profile,
+      folder_name: "profile",
+    });
+
+    if (!uploadFile) {
+      throw new BadRequestError("Cannot upload file, please try again");
+    }
+
+    account.user_profile = uploadFile.url;
+  }
+  const data: any = {
+    user_name: account.user_name,
+    user_phone: null,
+  };
+
+  if (account.user_phone !== undefined) {
+    data.user_phone = account.user_phone;
+  }
+
+  if (account.user_profile !== undefined) {
+    data.user_profile = account.user_profile ?? null;
+  }
+
+  const updateProfile = await updateProfileData({ account: data, user_id });
+
+  if (!updateProfile) throw new BadRequestError("Failed to update profile");
+
+  return updateProfile;
+}
+
+export async function deleteImageProfileService({ user_id }: { user_id: string }) {
+  if (!user_id) throw new BadRequestError("User ID not found");
+
+  const user = await getUserData(user_id);
+
+  if (!user) throw new BadRequestError("User not found");
+
+  const removeImage = await deleteImageProfileData({ user_id });
+
+  if (!removeImage) throw new BadRequestError("Failed to remove your image");
+
+  const fileName = await formatFileService({ image: user.user_profile! });
+
+  const deleteFile = await deleteFileService({ filename: fileName, folder_name: "profile" });
+
+  if (!deleteFile) throw new BadRequestError("Failed to delete image from cloudinary, please try again");
+  
+
+  return deleteFile;
 }
