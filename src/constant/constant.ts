@@ -1,4 +1,6 @@
 export const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+export const PH_PHONE_REGEX = /^(?:\+63|0)9\d{9}$/;
+
 export const MIN_PASSWORD_LENGTH = 8;
 export const SALT_ROUND = 10;
 export const IMAGE_FORMAT = ["image/png", "image/jpg", "image/jpeg"];

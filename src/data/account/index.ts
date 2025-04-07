@@ -20,7 +20,7 @@ export async function loginAccountData({ user_email, user_password }: { user_ema
     throw new BadRequestError("Invalid Credentials");
   }
 
-  if(user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
+  if (user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
 
   return user;
 }
@@ -50,8 +50,8 @@ export async function registerAccountData({ user_is_verified, user_email, user_n
 export async function getUserByTokenData(confirm_token_hash: string) {
   const user = await prisma.tbl_users.findFirst({
     where: {
-      user_is_verified: confirm_token_hash
-    }
+      user_is_verified: confirm_token_hash,
+    },
   });
 
   return user;
@@ -62,8 +62,8 @@ export async function deleteUserTokenData(user_id: string) {
       user_is_verified: null,
     },
     where: {
-      user_id
-    }
+      user_id,
+    },
   });
 
   return user;
@@ -155,4 +155,33 @@ export async function deleteResetTokenData(reset_token_id: string) {
   });
 
   return reset_token;
+}
+
+export async function updateProfileData({ account, user_id }: { account: any; user_id: string }) {
+  const user = await prisma.tbl_users.update({
+    data: {...account},
+    where: {
+      user_id,
+    },
+    select: {
+      user_name: true,
+      user_profile: true,
+      user_phone: true,
+    }
+  });
+
+  return user;
+}
+
+export async function deleteImageProfileData({user_id} : {user_id: string}){
+  const user = await prisma.tbl_users.update({
+    data: {
+      user_profile: null,
+    },
+    where: {
+      user_id
+    }
+  });
+
+  return user;
 }

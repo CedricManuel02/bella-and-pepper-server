@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import {
   createForgotPasswordService,
+  deleteImageProfileService,
   getAccountService,
   getVerificationEmailTokenServer,
   getVerificationTokenService,
@@ -9,6 +10,7 @@ import {
   resetPasswordService,
   resetProfilePasswordService,
   signOutAccountService,
+  updateProfileService,
 } from "../../services/account/index.js";
 import { StatusCodes } from "http-status-codes";
 import { deleteCookie } from "hono/cookie";
@@ -90,4 +92,24 @@ export async function confirmAccountController(c: Context) {
   const { token } = await c.req.param();
   await getVerificationEmailTokenServer(token);
   return c.json({ message: "Successfully confirm your account", status: StatusCodes.ACCEPTED });
+}
+
+export async function updateProfileController(c: Context) {
+    const user_id = c.get("user_id");
+
+    const body = await c.req.parseBody();
+
+    const updatedUser = await updateProfileService({user_id, account: body});
+    
+    return c.json({message: "Successfully Updated your profile", data:updatedUser, status: StatusCodes.ACCEPTED});
+
+}
+
+export async function deleteImageProfileController(c: Context) {
+  const user_id = c.get("user_id");
+
+  await deleteImageProfileService({user_id});
+  
+  return c.json({message: "Successfully remove your image", status: StatusCodes.OK});
+
 }
