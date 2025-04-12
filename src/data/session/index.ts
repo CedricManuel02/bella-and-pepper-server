@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { BadRequestError } from "../../utils/error.js";
 
 const prisma = new PrismaClient();
 
@@ -53,12 +54,12 @@ export async function updateSessionData({
   return session;
 }
 
-export async function deleteSessionData({ user_id }: { user_id: string }) {
-  const session = await prisma.tbl_session.deleteMany({
-    where: {
-      user_id,
-    },
-  });
-
-  return session;
+export async function deleteSessionData(user_id: string) {
+  try {
+    const session = await prisma.tbl_session.deleteMany({where: {user_id}});
+    return session;
+  } catch (error) {
+    console.error("Something went wrong while deleting session data:", error);
+    throw new BadRequestError("Something went wrong while deleting session data");
+  }
 }

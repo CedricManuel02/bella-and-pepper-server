@@ -102,7 +102,6 @@ export async function updateCheckoutService(payload: {
   const payment_unique = await getOrderByPaymentIntentData({
     payment_unique_id: payload.payment_unique_id,
   });
-  console.log("payment_unique", payment_unique);
   if (!payment_unique) throw new BadRequestError("Payment unique id not found");
 
   const updatePayment = await updateOrderData({

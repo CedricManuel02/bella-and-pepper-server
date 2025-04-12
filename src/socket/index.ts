@@ -39,7 +39,7 @@ io.on("connection", (socket) => {
   });
 
   // Send notification by userId
-  socket.on("send_notification", ({ recipientUserId }) => {
+  socket.on("admin_send_notification", ({ recipientUserId }) => {
     const recipientSocketId = userSockets.get(recipientUserId);
     if (recipientSocketId) {
       io.to(recipientSocketId).emit("receive_notification");
@@ -50,23 +50,11 @@ io.on("connection", (socket) => {
   });
 
     // Send notification by userId
-    socket.on("send_rating_product_notification", async () => {
+    socket.on("user_send_notification", async () => {
       const admin_id = await getAdminAccountData();
       const recipientSocketId = userSockets.get(admin_id);
       if (recipientSocketId) {
-        io.to(recipientSocketId).emit("received_rating_product_notification");
-        console.log(`📩 Notification sent to ${admin_id}`);
-      } else {
-        console.log(`⚠️ User ${admin_id} is not connected.`);
-      }
-    });
-
-     // Send notification by userId
-     socket.on("send_order_received_notification", async () => {
-      const admin_id = await getAdminAccountData();
-      const recipientSocketId = userSockets.get(admin_id);
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit("received_order_received_notification");
+        io.to(recipientSocketId).emit("receive_notification");
         console.log(`📩 Notification sent to ${admin_id}`);
       } else {
         console.log(`⚠️ User ${admin_id} is not connected.`);

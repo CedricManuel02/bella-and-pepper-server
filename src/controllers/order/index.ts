@@ -5,6 +5,7 @@ import {
   deleteOrderService,
   generateSalesReportService,
   getAllOrdersService,
+  getOrderByCheckoutSessionService,
   getOrderItemService,
   getOrderService,
   getOrdersService,
@@ -120,4 +121,12 @@ export async function generateSalesReportController(c: Context) {
     message: "Successfully generated sales report",
     status: StatusCodes.OK,
   });
+}
+
+export async function getOrderByCheckoutSessionController(c: Context) {
+  const { session_id } = await c.req.param();
+  const user_id = c.get("user_id");
+
+  await getOrderByCheckoutSessionService({session_id, user_id});
+  return c.json({message: "Successfully checkout", status: StatusCodes.OK});
 }

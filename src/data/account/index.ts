@@ -1,28 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 import type { IAccount } from "../../interfaces/interface.js";
 import { BadRequestError } from "../../utils/error.js";
-import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
-export async function loginAccountData({ user_email, user_password }: { user_email: string; user_password: string }) {
-  const user = await prisma.tbl_users.findUnique({
-    where: { user_email: user_email },
-  });
 
-  if (!user) {
-    throw new BadRequestError("Invalid Credentials");
+export async function getAccountByEmailData(user_email: string) {
+  try {
+    const user = await prisma.tbl_users.findUnique({ where: { user_email } });
+    return user;
+  } catch (error) {
+    console.error("Something went wrong while getting account by email data:", error);
+    throw new BadRequestError("Something went wrong while getting account by email data");
   }
-
-  const password_match = await bcrypt.compare(user_password, user.user_password);
-
-  if (!password_match) {
-    throw new BadRequestError("Invalid Credentials");
-  }
-
-  if (user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
-
-  return user;
 }
 
 export async function registerAccountData({ user_is_verified, user_email, user_name, user_password }: IAccount) {
@@ -159,7 +149,7 @@ export async function deleteResetTokenData(reset_token_id: string) {
 
 export async function updateProfileData({ account, user_id }: { account: any; user_id: string }) {
   const user = await prisma.tbl_users.update({
-    data: {...account},
+    data: { ...account },
     where: {
       user_id,
     },
@@ -167,20 +157,20 @@ export async function updateProfileData({ account, user_id }: { account: any; us
       user_name: true,
       user_profile: true,
       user_phone: true,
-    }
+    },
   });
 
   return user;
 }
 
-export async function deleteImageProfileData({user_id} : {user_id: string}){
+export async function deleteImageProfileData({ user_id }: { user_id: string }) {
   const user = await prisma.tbl_users.update({
     data: {
       user_profile: null,
     },
     where: {
-      user_id
-    }
+      user_id,
+    },
   });
 
   return user;

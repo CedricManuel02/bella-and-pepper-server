@@ -38,9 +38,7 @@ export async function stripeWebhookCheckoutSuccess(payload: any) {
   if (!order) throw new BadRequestError("Failed to get order");
 
   if (payment_status === "PAID") {
-    const deleteCart = await deleteCartByVariantIdService({ variant: order.tbl_items, user_id: order.user_id });
-
-    if (!deleteCart) throw new BadRequestError("Failed to delete cart");
+     await deleteCartByVariantIdService({ variant: order.tbl_items, user_id: order.user_id });
 
     for (let i = 0; i < order.tbl_items.length; i++) {
       const variant = await getVariantData(order.tbl_items[i].variant_id);

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import { sign } from "hono/jwt";
 import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
-import type { IAccount } from "../../interfaces/interface.js";
+import type { IAccount, IUsers } from "../../interfaces/interface.js";
 import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, PRIVATE_KEY_PEM, PUBLIC_KEY_PEM, SALT_ROUND } from "../../constant/constant.js";
 import {
   createResetTokenData,
@@ -13,65 +13,81 @@ import {
   getResetTokenData,
   getUserByEmailData,
   getUserByTokenData,
-  loginAccountData,
   registerAccountData,
   resetPasswordAccountData,
   updateAccountPasswordData,
   updateProfileData,
 } from "../../data/account/index.js";
-import { setCookie } from "hono/cookie";
-import type { Context } from "hono";
 import { createSessionData, deleteSessionData, getSessionData } from "../../data/session/index.js";
 import { getUserData } from "../../data/user/index.js";
 import { createGmailSendingService } from "../../utils/send-email.js";
 
 import * as jose from "jose";
 import { createFileService, deleteFileService, formatFileService, validateFileService } from "../file/index.js";
+import { isUserExistingByEmailService } from "../user/index.js";
 dotenv.config();
 
-export async function loginAccountService({ user_email, user_password, c }: { user_email: string; user_password: string; c: Context }) {
+// SERVICE ACCOUNT LOGIN
+export async function loginAccountService({ user_email, user_password }: { user_email: string; user_password: string }) {
   if (!user_email || !user_password) throw new BadRequestError("All fields are required");
 
   if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address format");
 
-  const user = await loginAccountData({ user_email, user_password });
+  const user = await isUserExistingByEmailService(user_email);
 
-  const expires_at = new Date(Date.now() + 1000 * 60 * 60);
+  const password_match = await bcrypt.compare(user_password, user.user_password);
 
-  const session_token = await sign(
-    {
-      sub: [user.user_email, user.user_id],
-      role: user.roles,
-      exp: Math.floor(expires_at.getTime() / 1000),
-    },
-    process.env.APP_SECRET_KEY as string
-  );
+  if (!password_match) throw new BadRequestError("Invalid Credentials");
 
-  const createSession = await createSessionData({
-    user_id: user.user_id,
-    session_token: session_token,
-    session_expires_at: expires_at,
-  });
+  if (user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
 
-  if (!createSession) throw new Error("Failed to create a session, please try again");
-
-  setCookie(c, "auth__token", session_token, {
-    path: "/",
-    secure: true,
-    httpOnly: true,
-    sameSite: "Strict",
-    expires: expires_at,
-  });
+  const session_token = await createAccountSessionService(user);
 
   return { user, session_token };
 }
 
+// CREATE SESSION SERVICE (LOGIN)
+async function createAccountSessionService(user: IUsers) {
+  try {
+    const { user_id, user_email, roles } = user;
+    const session_expires_at = new Date(Date.now() + 1000 * 60 * 60);
+
+    const session_token = await sign(
+      {
+        sub: [user_email, user_id],
+        role: roles,
+        exp: Math.floor(session_expires_at.getTime() / 1000),
+      },
+      process.env.APP_SECRET_KEY as string
+    );
+
+    const create_session = await createSessionData({
+      user_id,
+      session_token,
+      session_expires_at,
+    });
+
+    if (!create_session) throw new Error("Failed to create a session, please try again");
+
+    return session_token;
+  } catch (error) {
+    console.error("Something went wrong while creating account session service:", error);
+    throw new BadRequestError("Something went wrong while creating account session service");
+  }
+}
+
+// SERVICE SIGNING OUT ACCOUNT
 export async function signOutAccountService(user_id: string) {
-  if (!user_id) throw new BadRequestError("Failed to get user");
+  try {
+    if (!user_id) throw new BadRequestError("Failed to get user");
 
-  const signout = await deleteSessionData({ user_id });
+    const signout = await deleteSessionData(user_id);
 
-  return signout;
+    return signout;
+  } catch (error) {
+    console.error("Something went wrong while signing out account session service:", error);
+    throw new BadRequestError("Something went wrong while signing out account session service");
+  }
 }
 
 export async function registerAccountService(payload: IAccount) {
@@ -383,7 +399,6 @@ export async function deleteImageProfileService({ user_id }: { user_id: string }
   const deleteFile = await deleteFileService({ filename: fileName, folder_name: "profile" });
 
   if (!deleteFile) throw new BadRequestError("Failed to delete image from cloudinary, please try again");
-  
 
   return deleteFile;
 }

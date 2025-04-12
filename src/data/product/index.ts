@@ -14,6 +14,7 @@ export async function getProductsData() {
               tbl_discount: true,
             },
           },
+          tbl_rating: true,
         },
       },
       tbl_rating: true,

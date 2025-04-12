@@ -100,16 +100,17 @@ export interface IDeliveryDetails {
   [key: string]: any;
 }
 
-// ORDER INTERFACE
 
 // NOTIFICATION INTERFACE
 export interface INotification {
+  order_id?: string;
+  product_id?: string;
   notification_id?: string;
-  notification_title: string;
-  notification_body: string;
   user_sender_id: string;
   user_receiver_id: string;
-  status: "PLACED_ORDER" | "CANCELLED" | "PAID" | "REFUNDED" | "RATING" | "APPROVED" | "SHIPPED" | "DELIVERED";
+  notifications_title: string;
+  notifications_body: string;
+  status: "PLACED_ORDER" | "CANCELLED" | "PAID" | "REFUNDED" | "RATING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "VIOLATION";
 }
 
 // ORDER INTERFACE SCHEMA
@@ -118,14 +119,13 @@ export interface IUsers {
   user_id: string;
   user_name: string;
   user_email: string;
-  user_phone: string;
+  user_phone?: string | null;
   user_password: string;
-  user_profile: string;
-  user_is_verified: string;
+  user_profile?: string | null;
+  user_is_verified?: string | null;
   user_date_created: Date;
   user_date_updated: Date | null;
-  reset_token_hash: string;
-  reset_token_expires_at: Date;
+  roles: "ADMIN" | "USER";
 }
 
 export interface IOrderBase {

@@ -169,7 +169,12 @@ export async function getUserOrderData(payload: { order_id: string }) {
         },
       },
       tbl_cancelled_order: true,
-      tbl_rating: true,
+      tbl_rating: {
+        include: {
+          tbl_users: true,
+          tbl_variants: true,
+        }
+      },
       tbl_shipping_fee: true,
     },
   });
@@ -218,6 +223,7 @@ export async function getOrderByPaymentIntentData(payload: { payment_unique_id: 
     include: {
       tbl_order_payment: true,
       tbl_items: true,
+      tbl_users: true,
     },
   });
 

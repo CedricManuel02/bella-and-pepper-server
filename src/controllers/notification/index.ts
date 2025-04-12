@@ -1,18 +1,34 @@
 import type { Context } from "hono";
 import { StatusCodes } from "http-status-codes";
+import { BadRequestError } from "../../utils/error.js";
 import { getNotificationsService, updateNotificationsService } from "../../services/notification/index.js";
 
-export async function getNotificationsController(c: Context) {
-  const user_id = c.get("user_id");
-  
-  const notifications = await getNotificationsService({ user_id });
+// ? DONE CODE CLEANING
 
-  return c.json({ notifications: notifications, status: StatusCodes.OK });
+// GET ALL NOTIFICATION CONTROLLER
+export async function getNotificationsController(c: Context) {
+  try {
+    const user_id = c.get("user_id") as string;
+
+    const notifications = await getNotificationsService(user_id);
+
+    return c.json({ notifications, status: StatusCodes.OK });
+  } catch (error) {
+    console.error("Something went wrong in get notification controller:", error);
+    throw new BadRequestError("Something went wrong in get notification controller");
+  }
 }
 
+// UPDATE NOTIFICATION CONTROLLER
 export async function updateNotificationsController(c: Context) {
-  const user_id = c.get("user_id");
-  await updateNotificationsService({ user_id });
+  try {
+    const user_id = c.get("user_id") as string;
 
-  return c.json({ message: "Successfully updated notifications", status: StatusCodes.OK });
+    await updateNotificationsService(user_id);
+
+    return c.json({ message: "Successfully updated notifications", status: StatusCodes.ACCEPTED });
+  } catch (error) {
+    console.error("Something went wrong in update notification controller:", error);
+    throw new BadRequestError("Something went wrong in update notification controller");
+  }
 }

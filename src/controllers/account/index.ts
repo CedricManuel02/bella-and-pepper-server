@@ -14,12 +14,16 @@ import {
 } from "../../services/account/index.js";
 import { StatusCodes } from "http-status-codes";
 import { deleteCookie } from "hono/cookie";
+
+// LOGIN ACCOUNT CONTROLLER
 export async function loginAccountController(c: Context) {
-  const { user_email, user_password } = await c.req.json();
+  try {
+    const { user_email, user_password } = await c.req.json();
 
-  const { user, session_token } = await loginAccountService({ user_email, user_password, c });
+    const { user, session_token } = await loginAccountService({ user_email, user_password });
 
-  return c.json({ data: user, token: session_token, status: StatusCodes.OK });
+    return c.json({ data: user, token: session_token, status: StatusCodes.OK });
+  } catch (error) {}
 }
 
 export async function registerAccountController(c: Context) {
@@ -95,21 +99,19 @@ export async function confirmAccountController(c: Context) {
 }
 
 export async function updateProfileController(c: Context) {
-    const user_id = c.get("user_id");
+  const user_id = c.get("user_id");
 
-    const body = await c.req.parseBody();
+  const body = await c.req.parseBody();
 
-    const updatedUser = await updateProfileService({user_id, account: body});
-    
-    return c.json({message: "Successfully Updated your profile", data:updatedUser, status: StatusCodes.ACCEPTED});
+  const updatedUser = await updateProfileService({ user_id, account: body });
 
+  return c.json({ message: "Successfully Updated your profile", data: updatedUser, status: StatusCodes.ACCEPTED });
 }
 
 export async function deleteImageProfileController(c: Context) {
   const user_id = c.get("user_id");
 
-  await deleteImageProfileService({user_id});
-  
-  return c.json({message: "Successfully remove your image", status: StatusCodes.OK});
+  await deleteImageProfileService({ user_id });
 
+  return c.json({ message: "Successfully remove your image", status: StatusCodes.OK });
 }
