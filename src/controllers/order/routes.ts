@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { userAuthenticationMiddlewares } from "../../middlewares/user-authentication-handler.js";
-import { cancelledOrderController, createOrderCancellationController, deleteOrderController, generateSalesReportController, getAllOrdersController, getOrderController, getOrderItemController, getOrdersController, receivedOrderController } from "./index.js";
+import { cancelledOrderController, createOrderCancellationController, deleteOrderController, generateSalesReportController, getAllOrdersController, getOrderByCheckoutSessionController, getOrderController, getOrderItemController, getOrdersController, receivedOrderController } from "./index.js";
 import { adminAuthenticationMiddlewares } from "../../middlewares/admin-authentication-handler.js";
 
 const router = new Hono()
@@ -13,5 +13,6 @@ const router = new Hono()
 .post("/auth/order/cancelled/:order_id", userAuthenticationMiddlewares, cancelledOrderController)
 .delete("/auth/order/delete/:session_id", userAuthenticationMiddlewares, deleteOrderController)
 .post("/auth/sales-report", adminAuthenticationMiddlewares, generateSalesReportController)
+.get("/auth/order/success/:session_id",userAuthenticationMiddlewares, getOrderByCheckoutSessionController)
 
 export default router;

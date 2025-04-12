@@ -20,4 +20,4 @@ export enum CancelledReason {
   OTHER,
 }
 
-export type Status = "PLACED_ORDER" | "CANCELLED" | "PAID" | "REFUNDED" | "RATING" | "APPROVED" | "SHIPPED" | "DELIVERED"
+export type Status = "PLACED_ORDER" | "CANCELLED" | "PAID" | "REFUNDED" | "RATING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "VIOLATION"

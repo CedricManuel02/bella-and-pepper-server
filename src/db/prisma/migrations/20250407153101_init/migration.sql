@@ -77,7 +77,7 @@ CREATE TABLE `tbl_notifications` (
     `notifications_body` VARCHAR(191) NOT NULL,
     `notifications_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `notifications_read` BOOLEAN NOT NULL DEFAULT false,
-    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED') NOT NULL,
+    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED', 'VIOLATION') NOT NULL,
     `user_sender_id` VARCHAR(191) NULL,
     `user_receiver_id` VARCHAR(191) NOT NULL,
     `order_id` VARCHAR(191) NULL,
@@ -152,6 +152,7 @@ CREATE TABLE `tbl_rating` (
     `rating` INTEGER NOT NULL,
     `rating_text` TEXT NULL,
     `rating_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `rating_date_deleted` DATETIME(3) NULL,
 
     UNIQUE INDEX `tbl_rating_rating_id_key`(`rating_id`),
     PRIMARY KEY (`rating_id`)
@@ -172,7 +173,7 @@ CREATE TABLE `tbl_rating_media` (
 CREATE TABLE `tbl_order_status` (
     `order_status_id` VARCHAR(191) NOT NULL,
     `order_id` VARCHAR(191) NOT NULL,
-    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED') NOT NULL,
+    `status` ENUM('CANCELLED', 'APPROVED', 'PAID', 'REFUNDED', 'PLACED_ORDER', 'RATING', 'SHIPPED', 'DELIVERED', 'VIOLATION') NOT NULL,
     `order_status_date_created` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `tbl_order_status_order_status_id_key`(`order_status_id`),

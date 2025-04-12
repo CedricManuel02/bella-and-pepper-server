@@ -1,11 +1,22 @@
 import type { CancelledReason } from "@prisma/client";
 import { getUserData } from "../../data/user/index.js";
-import { BadRequestError } from "../../utils/error.js";
+import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
 import { getAdminAccountData } from "../../data/account/index.js";
 import { sendNotificationService } from "../notification/index.js";
 import { expiredStripeCheckoutSessionLink } from "../../utils/payment.js";
 import { createCancelledOrderData } from "../../data/cancelled-order/index.js";
-import { createOrderStatusData, deleteOrderData, deletePlacedOrderNotPaidData, generateSalesReportData, geOrderItemData, getAllOrdersData, getOrderByPaymentIntentData, getPlacedOrdersNotPaidData, getUserOrderData, getUserOrdersData } from "../../data/order/index.js";
+import {
+  createOrderStatusData,
+  deleteOrderData,
+  deletePlacedOrderNotPaidData,
+  generateSalesReportData,
+  geOrderItemData,
+  getAllOrdersData,
+  getOrderByPaymentIntentData,
+  getPlacedOrdersNotPaidData,
+  getUserOrderData,
+  getUserOrdersData,
+} from "../../data/order/index.js";
 
 // GET ALL ORDERS (ADMIN REQUEST)
 export async function getAllOrdersService() {
@@ -60,7 +71,7 @@ export async function getOrderService(payload: { order_id: string; user_id: stri
 // GET SINGLE ORDER SERVICE (ADMIN REQUEST)
 export async function getOrderItemService(payload: { order_id: string }) {
   if (!payload.order_id) throw new BadRequestError("Order ID is required");
-  
+
   const order = await geOrderItemData({ order_id: payload.order_id });
 
   if (!order) throw new BadRequestError("Order not found");
@@ -85,8 +96,6 @@ export async function receivedOrderService(payload: { order_id: string; user_id:
     throw new BadRequestError("Order not found");
   }
 
- 
-
   const updateOrderReceived = await createOrderStatusData({ order_id: payload.order_id, status: "DELIVERED" });
 
   if (!updateOrderReceived) {
@@ -101,6 +110,7 @@ export async function receivedOrderService(payload: { order_id: string; user_id:
 
   const sendNotification = await sendNotificationService({
     action: "DELIVERED",
+    order_id: order.order_id,
     order_number: order.order_number,
     user_receiver_id: admin,
     user_sender_id: user.user_id,
@@ -112,9 +122,8 @@ export async function receivedOrderService(payload: { order_id: string; user_id:
 
   return updateOrderReceived;
 }
-// CANCELLED ORDER SERVICE 
+// CANCELLED ORDER SERVICE
 export async function cancelledOrderService({ order_id, user_id, reason }: { order_id: string; user_id: string; reason: CancelledReason }) {
-    
   if (!order_id) throw new BadRequestError("Order is required");
 
   if (!user_id) throw new BadRequestError("User is required");
@@ -135,54 +144,53 @@ export async function cancelledOrderService({ order_id, user_id, reason }: { ord
 
   if (!createCancelledOrder) throw new BadRequestError("Failed to create cancelled order");
 
-  const totalItemsAmount = order.tbl_items.reduce((total, item) => total + (item.item_product_price_at_time_purchase * item.item_quantity), 0);
+  const totalItemsAmount = order.tbl_items.reduce((total, item) => total + item.item_product_price_at_time_purchase * item.item_quantity, 0);
 
   const totalRefundedAmount = order.order_shipping_fee + totalItemsAmount;
 
-// add webhook refund 
+  // add webhook refund
   return createCancelledOrderData;
 }
 // DELETE ORDER SERVICE (USED FOR CANCELLED ORDER CHECKOUT AND RUN AN EXPIRATION FUNCTION)
-export async function deleteOrderService({session_id, user_id}: {session_id: string, user_id: string}) {
-  if(!session_id || !user_id) throw new BadRequestError(session_id ? "Session is required" : "User ID is required");
+export async function deleteOrderService({ session_id, user_id }: { session_id: string; user_id: string }) {
+  if (!session_id || !user_id) throw new BadRequestError(session_id ? "Session is required" : "User ID is required");
 
-  const session = await getOrderByPaymentIntentData({payment_unique_id: session_id});
+  const session = await getOrderByPaymentIntentData({ payment_unique_id: session_id });
 
-  if(!session) throw new BadRequestError("Checkout session not found");
+  if (!session) throw new BadRequestError("Checkout session not found");
 
-  const orderDelete = await deleteOrderData({order_id: session.order_id, user_id});
+  const orderDelete = await deleteOrderData({ order_id: session.order_id, user_id });
 
-  if(!orderDelete) throw new BadRequestError("Failed to delete order");
+  if (!orderDelete) throw new BadRequestError("Failed to delete order");
 
-  await expiredStripeCheckoutSessionLink({checkout_session: session_id});
+  await expiredStripeCheckoutSessionLink({ checkout_session: session_id });
 
   return orderDelete;
 }
 // DELETE ORDER CONTROLLER (USED FOR CRON JOB TO CHECK IF THE ORDER IS IDLE FOR TOO LONG)
 export async function deleteOrderCronJobService() {
   const current_date = new Date();
-  const one_hour_ago = new Date(current_date.getTime() - 60 * 60 * 1000); 
+  const one_hour_ago = new Date(current_date.getTime() - 60 * 60 * 1000);
 
   const orders_not_paid = await getPlacedOrdersNotPaidData();
 
-  if(orders_not_paid) {
-    for(let i = 0; i < orders_not_paid.length; i++) {
+  if (orders_not_paid) {
+    for (let i = 0; i < orders_not_paid.length; i++) {
       const order = orders_not_paid[i];
 
       const order_date_created = new Date(order.order_date_created);
 
-      if(order_date_created < one_hour_ago) {
-        await deletePlacedOrderNotPaidData({order_id: order.order_id});
+      if (order_date_created < one_hour_ago) {
+        await deletePlacedOrderNotPaidData({ order_id: order.order_id });
         console.log(`ORDER ${order.order_id} has been deleted due to inactivity`);
-        await expiredStripeCheckoutSessionLink({checkout_session: order.tbl_order_payment?.payment_unique_id as string});
+        await expiredStripeCheckoutSessionLink({ checkout_session: order.tbl_order_payment?.payment_unique_id as string });
       }
     }
   }
 }
 
-
 // GENERATE SALES REPORT SERVICE
-export async function generateSalesReportService({start_date, end_date}: { start_date: string; end_date: string }) {
+export async function generateSalesReportService({ start_date, end_date }: { start_date: string; end_date: string }) {
   if (!start_date || !end_date) throw new BadRequestError("Start date and end date are required");
 
   const salesReport = await generateSalesReportData({ start_date: new Date(start_date), end_date: new Date(end_date) });
@@ -192,4 +200,35 @@ export async function generateSalesReportService({start_date, end_date}: { start
   if (salesReport.length === 0) throw new BadRequestError("No sales report found for the given date range");
 
   return salesReport;
+}
+
+export async function getOrderByCheckoutSessionService({ user_id, session_id }: { user_id: string; session_id: string }) {
+  if (!session_id) throw new BadRequestError("Session ID is required");
+
+  if (!user_id) throw new BadRequestError("User ID is required");
+
+  const session = await getOrderByPaymentIntentData({ payment_unique_id: session_id });
+
+  if (!session) throw new BadRequestError("Session not found");
+
+  const user = await getUserData(user_id);
+
+  if (!user) throw new BadRequestError("User not found");
+
+  const admin_id = await getAdminAccountData();
+
+  if (!admin_id) throw new BadRequestError("Admin not found");
+
+  if (session.tbl_users.user_id !== user.user_id) throw new UnauthorizedError("Unauthorized");
+
+  const notification = await sendNotificationService({
+    action: "PAID",
+    order_number: session.order_number,
+    order_id: session.order_id,
+    user_name: user.user_name,
+    user_sender_id: user.user_id,
+    user_receiver_id: admin_id,
+  });
+
+  return notification; 
 }

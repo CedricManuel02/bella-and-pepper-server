@@ -89,7 +89,7 @@ export async function createShippedService(payload: {order_number: string; shipp
     throw new BadRequestError("Cannot create delivery details");
   }
 
-  const sendNotification = await sendNotificationService({action: "SHIPPED", order_number: order.order_number, user_receiver_id: order.user_id , user_sender_id: user.user_id })
+  const sendNotification = await sendNotificationService({action: "SHIPPED", order_number: order.order_number, order_id: order.order_id, user_receiver_id: order.user_id , user_sender_id: user.user_id })
 
   if(!sendNotification) {
     return new BadRequestError("Failed to send notification");

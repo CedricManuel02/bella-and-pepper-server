@@ -45,6 +45,7 @@ enum Status {
   RATING
   SHIPPED
   DELIVERED
+  VIOLATION
 }
 
 // TABLE FOR SHIPPING FEE
@@ -178,7 +179,7 @@ model tbl_discount {
   tbl_variant_item      tbl_variant_item[]
 }
 
-// TABLE FOR 
+// TABLE FOR VARIANT ITEM THAT HAS DISCOUNT
 model tbl_variant_item {
   variant_discount_id           String       @id @unique @default(uuid())
   discount_id                   String
@@ -205,6 +206,7 @@ model tbl_rating {
   rating              Int
   rating_text         String?            @db.Text
   rating_date_created DateTime           @default(now())
+  rating_date_deleted DateTime?
   tbl_rating_media    tbl_rating_media[]
 }
 
