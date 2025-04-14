@@ -23,7 +23,7 @@ import { isUserExistingByEmailService, isUserExistingService } from "../user/ind
 import { DecryptJWEToJWT, DeleteCloudinaryImage, EncryptJWTToJWE } from "../../utils/helper.js";
 import { createSessionData, deleteSessionData, getSessionData } from "../../data/session/index.js";
 import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, SALT_ROUND } from "../../constant/constant.js";
-import type { TAccount, TAccountBase, TAccountEmail, TAccountLogin, TAccountResetPassword, TUpdateAccount } from "../../types/account.types.js";
+import type { TAccount, TAccountUserID, TAccountEmail, TAccountLogin, TAccountResetPassword, TUpdateAccount } from "../../types/account.types.js";
 import type { TVerficationToken } from "../../types/token.types.js";
 
 dotenv.config();
@@ -129,7 +129,7 @@ async function createAccountSessionService(User: TAccount) {
   }
 }
 // SIGNING OUT ACCOUNT SERVICE
-export async function signOutAccountService({ user_id }: TAccountBase) {
+export async function signOutAccountService({ user_id }: TAccountUserID) {
   try {
     if (!user_id) throw new BadRequestError("Failed to get user");
 
@@ -144,7 +144,7 @@ export async function signOutAccountService({ user_id }: TAccountBase) {
   }
 }
 // GET ACCOUNT SERVICE
-export async function getAccountService({ user_id }: TAccountBase) {
+export async function getAccountService({ user_id }: TAccountUserID) {
   try {
     const user = getUserData(user_id);
 
@@ -419,7 +419,7 @@ export async function updateAccountService({ user_id, account }: { user_id: stri
   }
 }
 // DELETE IMAGE ACCOUNT SERVICE
-export async function deleteImageAccountService({ user_id }: TAccountBase) {
+export async function deleteImageAccountService({ user_id }: TAccountUserID) {
   try {
     if (!user_id) throw new BadRequestError("User ID not found");
 

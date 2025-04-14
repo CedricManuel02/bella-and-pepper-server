@@ -1,10 +1,10 @@
 import { getAccountByEmailData } from "../../data/account/index.js";
 import { getUserData } from "../../data/user/index.js";
-import type { TAccountBase, TAccountEmail } from "../../types/account.types.js";
+import type { TAccountUserID, TAccountEmail } from "../../types/account.types.js";
 import { BadRequestError } from "../../utils/error.js";
 
 // SERVICE FOR CHECKING IF THE USER IS EXISTING
-export async function isUserExistingService({user_id}: TAccountBase) {
+export async function isUserExistingService({user_id}: TAccountUserID) {
   try {
     const user = await getUserData(user_id);
 
