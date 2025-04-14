@@ -1,9 +1,3 @@
-import dotenv from "dotenv";
-import bcrypt from "bcrypt";
-import { sign } from "hono/jwt";
-import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
-import type { IAccount, IUsers } from "../../interfaces/interface.js";
-import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, PRIVATE_KEY_PEM, PUBLIC_KEY_PEM, SALT_ROUND } from "../../constant/constant.js";
 import {
   createResetTokenData,
   deleteImageProfileData,
@@ -18,207 +12,239 @@ import {
   updateAccountPasswordData,
   updateProfileData,
 } from "../../data/account/index.js";
-import { createSessionData, deleteSessionData, getSessionData } from "../../data/session/index.js";
+import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+import { sign } from "hono/jwt";
+import type { TAccount } from "../../types/types.js";
 import { getUserData } from "../../data/user/index.js";
+import type { IUsers } from "../../interfaces/interface.js";
 import { createGmailSendingService } from "../../utils/send-email.js";
+import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
+import { createFileService, validateFileService } from "../file/index.js";
+import { isUserExistingByEmailService, isUserExistingService } from "../user/index.js";
+import { DecryptJWEToJWT, DeleteCloudinaryImage, EncryptJWTToJWE } from "../../utils/helper.js";
+import { createSessionData, deleteSessionData, getSessionData } from "../../data/session/index.js";
+import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, SALT_ROUND } from "../../constant/constant.js";
 
-import * as jose from "jose";
-import { createFileService, deleteFileService, formatFileService, validateFileService } from "../file/index.js";
-import { isUserExistingByEmailService } from "../user/index.js";
 dotenv.config();
 
 // SERVICE ACCOUNT LOGIN
 export async function loginAccountService({ user_email, user_password }: { user_email: string; user_password: string }) {
-  if (!user_email || !user_password) throw new BadRequestError("All fields are required");
-
-  if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address format");
-
-  const user = await isUserExistingByEmailService(user_email);
-
-  const password_match = await bcrypt.compare(user_password, user.user_password);
-
-  if (!password_match) throw new BadRequestError("Invalid Credentials");
-
-  if (user.user_is_verified !== null) throw new BadRequestError("Please confirm your account, check your email");
-
-  const session_token = await createAccountSessionService(user);
-
-  return { user, session_token };
-}
-
-// CREATE SESSION SERVICE (LOGIN)
-async function createAccountSessionService(user: IUsers) {
   try {
-    const { user_id, user_email, roles } = user;
-    const session_expires_at = new Date(Date.now() + 1000 * 60 * 60);
+    if (!user_email || !user_password) throw new BadRequestError("All fields are required");
 
-    const session_token = await sign(
+    if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address format");
+
+    const user = await isUserExistingByEmailService(user_email);
+
+    const password_match = await bcrypt.compare(user_password, user.user_password);
+
+    if (!password_match) throw new BadRequestError("Invalid Credentials");
+
+    if (user.user_is_verified !== null) throw new BadRequestError("Please confirm your account and check your email");
+
+    const sessionToken = await createAccountSessionService(user);
+
+    return { user, sessionToken };
+  } catch (error) {
+    console.error("Something went wrong while logging account service:", error);
+    throw new BadRequestError("Something went wrong while logging account service");
+  }
+}
+// CREATE SESSION SERVICE (LOGIN)
+async function createAccountSessionService(User: IUsers) {
+  try {
+    const { user_id, user_email, roles } = User;
+
+    const sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60);
+
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: create account session service");
+
+    const sessionToken = await sign(
       {
         sub: [user_email, user_id],
         role: roles,
-        exp: Math.floor(session_expires_at.getTime() / 1000),
+        exp: Math.floor(sessionExpiresAt.getTime() / 1000),
       },
       process.env.APP_SECRET_KEY as string
     );
 
-    const create_session = await createSessionData({
+    const createSession = await createSessionData({
       user_id,
-      session_token,
-      session_expires_at,
+      session_token: sessionToken,
+      session_expires_at: sessionExpiresAt,
     });
 
-    if (!create_session) throw new Error("Failed to create a session, please try again");
+    if (!createSession) throw new Error("Failed to create a session, please try again");
 
-    return session_token;
+    return sessionToken;
   } catch (error) {
     console.error("Something went wrong while creating account session service:", error);
     throw new BadRequestError("Something went wrong while creating account session service");
   }
 }
-
 // SERVICE SIGNING OUT ACCOUNT
 export async function signOutAccountService(user_id: string) {
   try {
     if (!user_id) throw new BadRequestError("Failed to get user");
 
-    const signout = await deleteSessionData(user_id);
+    const deleteSession = await deleteSessionData(user_id);
 
-    return signout;
+    if (!deleteSession) throw new BadRequestError("Failed to delete session");
+
+    return deleteSession;
   } catch (error) {
     console.error("Something went wrong while signing out account session service:", error);
     throw new BadRequestError("Something went wrong while signing out account session service");
   }
 }
+// REGISTER ACCOUNT SERVICE
+export async function registerAccountService(Account: TAccount) {
+  try {
+    const { user_name, user_email, user_password, confirm_password } = Account;
 
-export async function registerAccountService(payload: IAccount) {
-  const { user_name, user_email, user_password, confirm_password } = payload;
+    if (!user_name || !user_email || !user_password) throw new BadRequestError("All fields are required");
 
-  if (!user_name || !user_email || !user_password) throw new BadRequestError("All fields are required");
+    if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address");
 
-  if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address");
+    if (user_password.length < MIN_PASSWORD_LENGTH) throw new BadRequestError("Password must be at least 8 characters long");
 
-  if (user_password.length < MIN_PASSWORD_LENGTH) throw new BadRequestError("Password must be at least 8 characters long");
+    if (user_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
-  if (user_password !== confirm_password) throw new BadRequestError("Password mismatch");
+    const hashPassword = await bcrypt.hash(user_password, SALT_ROUND);
 
-  const hash_password = await bcrypt.hash(user_password, SALT_ROUND);
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: register account service");
 
-  const user_is_verified = await sign(
-    {
-      sub: [user_email, new Date()],
-    },
-    process.env.APP_SECRET_KEY as string
-  );
+    const isVerifiedToken = await sign(
+      {
+        sub: [user_email, new Date()],
+      },
+      process.env.APP_SECRET_KEY as string
+    );
 
-  const registerData = await registerAccountData({ user_is_verified, user_email, user_name, user_password: hash_password });
+    const registerAccount = await registerAccountData({
+      user_is_verified: isVerifiedToken,
+      user_email,
+      user_name,
+      user_password: hashPassword,
+    });
 
-  if (!registerData) throw new BadRequestError("Failed to create account");
+    if (!registerAccount) throw new BadRequestError("Failed to create account");
 
-  const publicKey = await jose.importSPKI(PUBLIC_KEY_PEM, "RSA-OAEP-256");
+    const generatedJwe = await EncryptJWTToJWE(isVerifiedToken);
 
-  const jwe = await new jose.CompactEncrypt(new TextEncoder().encode(user_is_verified))
-    .setProtectedHeader({ alg: "RSA-OAEP-256", enc: "A256GCM" })
-    .encrypt(publicKey);
+    const sendEmail = await createGmailSendingService(user_email, "CONFIRM_ACCOUNT", generatedJwe!);
 
-  const sendEmail = await createGmailSendingService(user_email, "CONFIRM_ACCOUNT", jwe);
+    if (!sendEmail) throw new BadRequestError("Failed to send you a link, please try again");
 
-  if (!sendEmail) throw new BadRequestError("Failed to send you a link, please try again");
-
-  return registerData;
-}
-
-export async function getVerificationEmailTokenServer(token: string) {
-  if (!token) throw new BadRequestError("No token provided");
-
-  const privateKey = await jose.importPKCS8(PRIVATE_KEY_PEM, "RSA-OAEP-256");
-
-  const { plaintext } = await jose.compactDecrypt(token, privateKey);
-
-  const decodedPayload = new TextDecoder().decode(plaintext);
-
-  const payloadBase64Url = decodedPayload.split(".")[1];
-  const padding = "=".repeat((4 - (payloadBase64Url.length % 4)) % 4);
-  const payloadBase64 = payloadBase64Url + padding;
-  const payloadJson = JSON.parse(atob(payloadBase64));
-
-  const confirm_token_hash = await sign(
-    {
-      sub: [payloadJson.sub[0], new Date(payloadJson.sub[1])],
-    },
-    process.env.APP_SECRET_KEY as string
-  );
-
-  const getUserIsVerified = await getUserByTokenData(confirm_token_hash);
-
-  if (!getUserIsVerified) throw new BadRequestError("Token not found");
-
-  const userIsVerified = await deleteUserTokenData(getUserIsVerified.user_id);
-
-  if (!userIsVerified) throw new BadRequestError("Failed to verified account");
-
-  return getUserIsVerified;
-}
-
-export async function getAccountService(user_id: string) {
-  const user = getUserData(user_id);
-
-  if (!user) throw new BadRequestError("Account not found");
-
-  const access_token = await getSessionData({ user_id });
-
-  if (!access_token) throw new UnauthorizedError("Unauthorized token");
-
-  return { user, access_token };
-}
-
-export async function createForgotPasswordService({ user_email }: { user_email: string }) {
-  if (!user_email) throw new BadRequestError("Email is required");
-
-  if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Email is invalid");
-
-  const user = await getUserByEmailData(user_email);
-
-  if (!user) throw new BadRequestError("No account found with that email address");
-
-  const existingReset = await getResetTokenByUserIdData(user.user_id);
-
-  if (existingReset) {
-    const expires = new Date(existingReset.reset_token_expires_at.toString());
-    const now = new Date(Date.now());
-    if (now < expires) {
-      throw new BadRequestError("We already sent you a reset link, please check your email");
-    }
-    const deleteToken = await deleteResetTokenData(existingReset.reset_token_id);
-    if (!deleteToken) throw new BadRequestError("Failed to delete token");
+    return registerAccount;
+  } catch (error) {
+    console.error("Something went wrong while registering account service:", error);
+    throw new BadRequestError("Something went wrong while registering account service");
   }
-
-  const expires_at = new Date(Date.now() + 1000 * 60 * 60);
-
-  const reset_token_hash = await sign(
-    {
-      sub: [user.user_email, new Date()],
-      exp: Math.floor(expires_at.getTime() / 1000),
-    },
-    process.env.APP_SECRET_KEY as string
-  );
-
-  const resetToken = await createResetTokenData({ reset_token_hash, user_id: user.user_id, reset_token_expires_at: expires_at });
-
-  if (!resetToken) throw new BadRequestError("Failed to create reset token");
-
-  const publicKey = await jose.importSPKI(PUBLIC_KEY_PEM, "RSA-OAEP-256");
-
-  const jwe = await new jose.CompactEncrypt(new TextEncoder().encode(reset_token_hash))
-    .setProtectedHeader({ alg: "RSA-OAEP-256", enc: "A256GCM" })
-    .encrypt(publicKey);
-
-  const sendEmail = await createGmailSendingService(user.user_email, "FORGOT_PASSWORD", jwe);
-
-  if (!sendEmail) throw new BadRequestError("Failed to send you a link, please try again");
-
-  return sendEmail;
 }
+// GeT VERIFICATION EMAIL TOKEN SERVICE
+export async function getVerificationEmailTokenService(token: string) {
+  try {
+    if (!token) throw new BadRequestError("Token is required");
 
+    const { user_email, date } = await DecryptJWEToJWT(token);
+
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: verfication account service");
+
+    const confirmHashToken = await sign({ sub: [user_email, new Date(date)] }, process.env.APP_SECRET_KEY as string);
+
+    const getUserIsVerified = await getUserByTokenData(confirmHashToken);
+
+    if (!getUserIsVerified) throw new BadRequestError("Token not found");
+
+    const deleteUserToken = await deleteUserTokenData(getUserIsVerified.user_id);
+
+    if (!deleteUserToken) throw new BadRequestError("Failed to verified account");
+
+    return getUserIsVerified;
+  } catch (error) {
+    console.error("Something went wrong while verifying your account service:", error);
+    throw new BadRequestError("Something went wrong while verifying your account service");
+  }
+}
+// GET ACCOUNT SERVICE
+export async function getAccountService(user_id: string) {
+  try {
+    const user = getUserData(user_id);
+
+    if (!user) throw new BadRequestError("Account not found");
+
+    const accessToken = await getSessionData({ user_id });
+
+    if (!accessToken) throw new UnauthorizedError("Unauthorized token");
+
+    return { user, accessToken };
+  } catch (error) {
+    console.error("Something went wrong while getting your account service:", error);
+    throw new BadRequestError("Something went wrong while getting your account service");
+  }
+}
+// CREATE FORGOT PASSWORD SERVICE
+export async function createForgotPasswordService({ user_email }: { user_email: string }) {
+  try {
+    if (!user_email) throw new BadRequestError("Email is required");
+
+    if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Email is invalid");
+
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: create forgot password account service");
+
+    const user = await getUserByEmailData(user_email);
+
+    if (!user) throw new BadRequestError("Email not existing");
+
+    const resetUserToken = await getResetTokenByUserIdData(user.user_id);
+
+    if (resetUserToken) {
+      const expires = new Date(resetUserToken.reset_token_expires_at.toString());
+
+      const now = new Date(Date.now());
+
+      if (now < expires) {
+        throw new BadRequestError("We already sent you a reset link, please check your email");
+      }
+
+      const deleteToken = await deleteResetTokenData(resetUserToken.reset_token_id);
+
+      if (!deleteToken) throw new BadRequestError("Failed to delete token");
+    }
+
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
+
+    const resetTokenHash = await sign(
+      {
+        sub: [user.user_email, new Date()],
+        exp: Math.floor(expiresAt.getTime() / 1000),
+      },
+      process.env.APP_SECRET_KEY as string
+    );
+
+    const resetToken = await createResetTokenData({
+      resetTokenHash,
+      user_id: user.user_id,
+      reset_token_expires_at: expiresAt,
+    });
+
+    if (!resetToken) throw new BadRequestError("Failed to create reset token");
+
+    const jwe = await EncryptJWTToJWE(resetTokenHash);
+
+    const sendEmail = await createGmailSendingService(user.user_email, "FORGOT_PASSWORD", jwe);
+
+    if (!sendEmail) throw new BadRequestError("Failed to send you a link, please try again");
+
+    return sendEmail;
+  } catch (error) {
+    console.error("Something went wrong while create forget password reset service:", error);
+    throw new BadRequestError("Something went wrong while create forget password reset service");
+  }
+}
+// RESET PASSWORD SERVICE
 export async function resetPasswordService({
   new_password,
   confirm_password,
@@ -228,82 +254,90 @@ export async function resetPasswordService({
   confirm_password: string;
   reset_token: string;
 }) {
-  if (!new_password || !confirm_password) throw new BadRequestError("Password is required");
+  try {
+    if (!new_password || !confirm_password) throw new BadRequestError("Password & Confirm Password is required");
 
-  if (!reset_token) throw new UnauthorizedError("Unauthorized");
+    if (!reset_token) throw new UnauthorizedError("Unauthorized Reset Token");
 
-  const verifyToken = await getVerificationTokenService(reset_token);
+    const verifyToken = await getVerificationTokenService(reset_token);
 
-  if (!verifyToken) throw new BadRequestError("Token not verified");
+    if (!verifyToken) throw new BadRequestError("Token not verified");
 
-  const resetToken = await getResetTokenData(verifyToken.reset_token_hash);
+    const resetToken = await getResetTokenData(verifyToken);
 
-  if (!resetToken) throw new BadRequestError("Token not found");
+    if (!resetToken) throw new BadRequestError("Token not found");
 
-  const expires_at = new Date(resetToken.reset_token_expires_at.toString());
-  const now = new Date(Date.now());
+    const expiresAt = new Date(resetToken.reset_token_expires_at.toString());
+    const now = new Date(Date.now());
 
-  if (now > expires_at) {
+    if (now > expiresAt) {
+      await deleteResetTokenData(resetToken.reset_token_id);
+
+      throw new BadRequestError("Link expired, please request another link");
+    }
+
+    if (new_password.length < MIN_PASSWORD_LENGTH || confirm_password.length < MIN_PASSWORD_LENGTH)
+      throw new BadRequestError("Password must be at least 8 characters long");
+
+    if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
+
+    const hashPassword = await bcrypt.hash(new_password, SALT_ROUND);
+
+    const resetPassword = await resetPasswordAccountData({
+      new_password: hashPassword,
+      user_id: resetToken.user_id,
+    });
+
+    if (!resetPassword) throw new BadRequestError("Failed to reset your password");
+
     await deleteResetTokenData(resetToken.reset_token_id);
-    throw new BadRequestError("Link expired, please request another link");
+
+    return resetPassword;
+  } catch (error) {
+    console.error("Something went wrong while reseting password service:", error);
+    throw new BadRequestError("Something went wrong while reseting password service");
   }
-
-  if (new_password.length < MIN_PASSWORD_LENGTH || confirm_password.length < MIN_PASSWORD_LENGTH)
-    throw new BadRequestError("Password must be at least 8 characters long");
-
-  if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
-
-  const hash_password = await bcrypt.hash(new_password, SALT_ROUND);
-
-  const updateAccount = await resetPasswordAccountData({ new_password: hash_password, user_id: resetToken.user_id });
-
-  if (!updateAccount) throw new BadRequestError("Failed to reset password");
-
-  await deleteResetTokenData(resetToken.reset_token_id);
-
-  return updateAccount;
 }
-
+// GET VERIFICATION TOKEN SERVICE
 export async function getVerificationTokenService(token: string) {
-  if (!token) throw new BadRequestError("No token provided");
+  try {
+    if (!token) throw new BadRequestError("No token provided");
 
-  const privateKey = await jose.importPKCS8(PRIVATE_KEY_PEM, "RSA-OAEP-256");
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: register account service");
 
-  const { plaintext } = await jose.compactDecrypt(token, privateKey);
+    const { user_email, date, tokenExpiry } = await DecryptJWEToJWT(token);
 
-  const decodedPayload = new TextDecoder().decode(plaintext);
+    const currentDate = Math.floor(Date.now() / 1000);
 
-  const payloadBase64Url = decodedPayload.split(".")[1];
-  const padding = "=".repeat((4 - (payloadBase64Url.length % 4)) % 4);
-  const payloadBase64 = payloadBase64Url + padding;
-  const payloadJson = JSON.parse(atob(payloadBase64));
+    if (tokenExpiry < currentDate) throw new BadRequestError("The token has expired.");
 
-  const now = Math.floor(Date.now() / 1000);
-  if (payloadJson.exp < now) {
-    throw new BadRequestError("The token has expired.");
+    const resetTokenHash = await sign(
+      {
+        sub: [user_email, new Date(date)],
+        exp: tokenExpiry,
+      },
+      process.env.APP_SECRET_KEY as string
+    );
+
+    const getResetToken = await getResetTokenData(resetTokenHash);
+
+    if (!getResetToken) throw new BadRequestError("Token not found");
+
+    if (getResetToken.reset_token_expires_at < new Date()) {
+      const deleteToken = await deleteResetTokenData(getResetToken.reset_token_id);
+
+      if (!deleteToken) throw new BadRequestError("Failed to delete token");
+
+      throw new BadRequestError("The reset token has expired.");
+    }
+
+    return resetTokenHash;
+  } catch (error) {
+    console.error("Something went wrong while getting verification token service:", error);
+    throw new BadRequestError("Something went wrong while getting verification token service");
   }
-
-  const reset_token_hash = await sign(
-    {
-      sub: [payloadJson.sub[0], new Date(payloadJson.sub[1])],
-      exp: payloadJson.exp,
-    },
-    process.env.APP_SECRET_KEY as string
-  );
-
-  const getResetToken = await getResetTokenData(reset_token_hash);
-
-  if (!getResetToken) throw new BadRequestError("Token not found");
-
-  if (getResetToken?.reset_token_expires_at < new Date()) {
-    const deleteToken = await deleteResetTokenData(getResetToken.reset_token_id);
-    if (!deleteToken) throw new BadRequestError("Failed to delete token");
-    throw new BadRequestError("The reset token has expired.");
-  }
-
-  return { reset_token_hash };
 }
-
+// RESET PROFILE PASSWORD SERVICE
 export async function resetProfilePasswordService({
   user_id,
   user_password,
@@ -315,90 +349,99 @@ export async function resetProfilePasswordService({
   new_password: string;
   confirm_password: string;
 }) {
-  if (!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
+  try {
+    if (!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
 
-  const user = await getUserData(user_id);
+    const user = await isUserExistingService(user_id);
 
-  if (!user) throw new BadRequestError("User not found");
+    const isPasswordMatch = await bcrypt.compare(user_password, user.user_password);
 
-  const password_match = await bcrypt.compare(user_password, user.user_password);
+    if (!isPasswordMatch) throw new BadRequestError("Password mismatch");
 
-  if (!password_match) throw new BadRequestError("Password mismatch");
+    if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
 
-  if (new_password !== confirm_password) throw new BadRequestError("Password mismatch");
+    const newHashPassword = await bcrypt.hash(new_password, SALT_ROUND);
 
-  const new_hash_password = await bcrypt.hash(new_password, SALT_ROUND);
+    const updateAccountPassword = await updateAccountPasswordData({
+      user_id: user.user_id,
+      user_password: newHashPassword,
+    });
 
-  const updatePasswordAccount = await updateAccountPasswordData({ user_id: user.user_id, user_password: new_hash_password });
+    if (!updateAccountPassword) throw new BadRequestError("Failed to change your password, please try again");
 
-  if (!updatePasswordAccount) throw new BadRequestError("Failed to change password, please try again");
-
-  return updatePasswordAccount;
+    return updateAccountPassword;
+  } catch (error) {
+    console.error("Something went wrong while resetting profile password service:", error);
+    throw new BadRequestError("Something went wrong while resetting profile password service");
+  }
 }
 
 export async function updateProfileService({ user_id, account }: { user_id: string; account: any }) {
-  if (!user_id) throw new BadRequestError("User ID not found");
+  try {
+    let {user_profile} = account;
+    const { user_name, user_phone} = account;
 
-  const user = await getUserData(user_id);
+    if (!user_id) throw new BadRequestError("User ID not found");
 
-  if (!user) throw new BadRequestError("User not found");
+    await isUserExistingService(user_id);
 
-  if (!account.user_name) throw new BadRequestError("User name is required");
+    if (!user_name) throw new BadRequestError("User name is required");
 
-  if (account.user_phone && !PH_PHONE_REGEX.test(account.user_phone)) {
-    throw new BadRequestError("Invalid phone number format");
-  }
+    if (user_phone && !PH_PHONE_REGEX.test(user_phone)) throw new BadRequestError("Invalid phone number format");
+    
+    if (user_profile && user_profile instanceof File) {
+      await validateFileService({ image: user_profile });
 
-  if (account.user_profile && account.user_profile instanceof File) {
-    await validateFileService({ image: account.user_profile });
+      const uploadFile = await createFileService({
+        image: user_profile,
+        folder_name: "profile",
+      });
 
-    const uploadFile = await createFileService({
-      image: account.user_profile,
-      folder_name: "profile",
-    });
+      if (!uploadFile) {
+        throw new BadRequestError("Cannot upload file, please try again");
+      }
 
-    if (!uploadFile) {
-      throw new BadRequestError("Cannot upload file, please try again");
+      user_profile = uploadFile.url;
+    }
+    const data: any = {
+      user_name: user_name,
+      user_phone: null,
+    };
+
+    if (account.user_phone !== undefined) {
+      data.user_phone = account.user_phone;
     }
 
-    account.user_profile = uploadFile.url;
+    if (account.user_profile !== undefined) {
+      data.user_profile = account.user_profile ?? null;
+    }
+
+    const updateProfile = await updateProfileData({ account: data, user_id });
+
+    if (!updateProfile) throw new BadRequestError("Failed to update your profile");
+
+    return updateProfile;
+  } catch (error) {
+    console.error("Something went wrong while updating profile service:", error);
+    throw new BadRequestError("Something went wrong while updating profile service");
   }
-  const data: any = {
-    user_name: account.user_name,
-    user_phone: null,
-  };
-
-  if (account.user_phone !== undefined) {
-    data.user_phone = account.user_phone;
-  }
-
-  if (account.user_profile !== undefined) {
-    data.user_profile = account.user_profile ?? null;
-  }
-
-  const updateProfile = await updateProfileData({ account: data, user_id });
-
-  if (!updateProfile) throw new BadRequestError("Failed to update profile");
-
-  return updateProfile;
 }
-
+// DELETE IMAGE PROFILE SERVICE
 export async function deleteImageProfileService({ user_id }: { user_id: string }) {
-  if (!user_id) throw new BadRequestError("User ID not found");
+  try {
+    if (!user_id) throw new BadRequestError("User ID not found");
 
-  const user = await getUserData(user_id);
+    const user = await isUserExistingService(user_id);
 
-  if (!user) throw new BadRequestError("User not found");
+    const deleteUserImage = await deleteImageProfileData({ user_id });
 
-  const removeImage = await deleteImageProfileData({ user_id });
+    if (!deleteUserImage) throw new BadRequestError("Failed to remove your image");
 
-  if (!removeImage) throw new BadRequestError("Failed to remove your image");
+    const deleteImage = await DeleteCloudinaryImage({image: user.user_profile!, folder_name: "profile"});
 
-  const fileName = await formatFileService({ image: user.user_profile! });
-
-  const deleteFile = await deleteFileService({ filename: fileName, folder_name: "profile" });
-
-  if (!deleteFile) throw new BadRequestError("Failed to delete image from cloudinary, please try again");
-
-  return deleteFile;
+    return deleteImage;
+  } catch (error) {
+    console.error("Something went wrong while deleting image profile service");
+    throw new BadRequestError("Something went wrong while deleting image profile service");
+  }
 }
