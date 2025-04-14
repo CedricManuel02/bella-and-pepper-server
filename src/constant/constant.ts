@@ -5,6 +5,7 @@ export const MIN_PASSWORD_LENGTH = 8;
 export const SALT_ROUND = 10;
 export const IMAGE_FORMAT = ["image/png", "image/jpg", "image/jpeg"];
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+export const DEFAULT_ACCOUNT_ROLE = "USER";
 
 export const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAnOQV/xRX4zpA5Ap6YZbb

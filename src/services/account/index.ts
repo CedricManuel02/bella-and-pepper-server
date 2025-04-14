@@ -1,23 +1,21 @@
 import {
-  createResetTokenData,
-  deleteImageProfileData,
+  createResetPasswordTokenData,
+  deleteAccountImageData,
   deleteResetTokenData,
-  deleteUserTokenData,
+  clearAccountVerificationStatusData,
   getResetTokenByUserIdData,
   getResetTokenData,
   getUserByEmailData,
-  getUserByTokenData,
+  getAccountByVerificationHashData,
   registerAccountData,
-  resetPasswordAccountData,
+  resetAccountPasswordData,
   updateAccountPasswordData,
-  updateProfileData,
+  updateAccountData,
 } from "../../data/account/index.js";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import { sign } from "hono/jwt";
-import type { TAccount } from "../../types/types.js";
 import { getUserData } from "../../data/user/index.js";
-import type { IUsers } from "../../interfaces/interface.js";
 import { createGmailSendingService } from "../../utils/send-email.js";
 import { BadRequestError, UnauthorizedError } from "../../utils/error.js";
 import { createFileService, validateFileService } from "../file/index.js";
@@ -25,17 +23,19 @@ import { isUserExistingByEmailService, isUserExistingService } from "../user/ind
 import { DecryptJWEToJWT, DeleteCloudinaryImage, EncryptJWTToJWE } from "../../utils/helper.js";
 import { createSessionData, deleteSessionData, getSessionData } from "../../data/session/index.js";
 import { EMAIL_REGEX, MIN_PASSWORD_LENGTH, PH_PHONE_REGEX, SALT_ROUND } from "../../constant/constant.js";
+import type { TAccount, TAccountBase, TAccountEmail, TAccountLogin, TAccountResetPassword, TUpdateAccount } from "../../types/account.types.js";
+import type { TVerficationToken } from "../../types/token.types.js";
 
 dotenv.config();
 
-// SERVICE ACCOUNT LOGIN
-export async function loginAccountService({ user_email, user_password }: { user_email: string; user_password: string }) {
+// ACCOUNT LOGIN SERVICE
+export async function loginAccountService({ user_email, user_password }: TAccountLogin) {
   try {
     if (!user_email || !user_password) throw new BadRequestError("All fields are required");
 
     if (!EMAIL_REGEX.test(user_email)) throw new BadRequestError("Invalid email address format");
 
-    const user = await isUserExistingByEmailService(user_email);
+    const user = await isUserExistingByEmailService({ user_email });
 
     const password_match = await bcrypt.compare(user_password, user.user_password);
 
@@ -49,53 +49,6 @@ export async function loginAccountService({ user_email, user_password }: { user_
   } catch (error) {
     console.error("Something went wrong while logging account service:", error);
     throw new BadRequestError("Something went wrong while logging account service");
-  }
-}
-// CREATE SESSION SERVICE (LOGIN)
-async function createAccountSessionService(User: IUsers) {
-  try {
-    const { user_id, user_email, roles } = User;
-
-    const sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60);
-
-    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: create account session service");
-
-    const sessionToken = await sign(
-      {
-        sub: [user_email, user_id],
-        role: roles,
-        exp: Math.floor(sessionExpiresAt.getTime() / 1000),
-      },
-      process.env.APP_SECRET_KEY as string
-    );
-
-    const createSession = await createSessionData({
-      user_id,
-      session_token: sessionToken,
-      session_expires_at: sessionExpiresAt,
-    });
-
-    if (!createSession) throw new Error("Failed to create a session, please try again");
-
-    return sessionToken;
-  } catch (error) {
-    console.error("Something went wrong while creating account session service:", error);
-    throw new BadRequestError("Something went wrong while creating account session service");
-  }
-}
-// SERVICE SIGNING OUT ACCOUNT
-export async function signOutAccountService(user_id: string) {
-  try {
-    if (!user_id) throw new BadRequestError("Failed to get user");
-
-    const deleteSession = await deleteSessionData(user_id);
-
-    if (!deleteSession) throw new BadRequestError("Failed to delete session");
-
-    return deleteSession;
-  } catch (error) {
-    console.error("Something went wrong while signing out account session service:", error);
-    throw new BadRequestError("Something went wrong while signing out account session service");
   }
 }
 // REGISTER ACCOUNT SERVICE
@@ -143,33 +96,55 @@ export async function registerAccountService(Account: TAccount) {
     throw new BadRequestError("Something went wrong while registering account service");
   }
 }
-// GeT VERIFICATION EMAIL TOKEN SERVICE
-export async function getVerificationEmailTokenService(token: string) {
+// CREATE SESSION SERVICE (LOGIN)
+async function createAccountSessionService(User: TAccount) {
   try {
-    if (!token) throw new BadRequestError("Token is required");
+    const { user_id, user_email, roles } = User;
 
-    const { user_email, date } = await DecryptJWEToJWT(token);
+    const sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60);
 
-    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: verfication account service");
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: create account session service");
 
-    const confirmHashToken = await sign({ sub: [user_email, new Date(date)] }, process.env.APP_SECRET_KEY as string);
+    const sessionToken = await sign(
+      {
+        sub: [user_email, user_id],
+        role: roles,
+        exp: Math.floor(sessionExpiresAt.getTime() / 1000),
+      },
+      process.env.APP_SECRET_KEY as string
+    );
 
-    const getUserIsVerified = await getUserByTokenData(confirmHashToken);
+    const createSession = await createSessionData({
+      user_id,
+      session_token: sessionToken,
+      session_expires_at: sessionExpiresAt,
+    });
 
-    if (!getUserIsVerified) throw new BadRequestError("Token not found");
+    if (!createSession) throw new Error("Failed to create a session, please try again");
 
-    const deleteUserToken = await deleteUserTokenData(getUserIsVerified.user_id);
-
-    if (!deleteUserToken) throw new BadRequestError("Failed to verified account");
-
-    return getUserIsVerified;
+    return sessionToken;
   } catch (error) {
-    console.error("Something went wrong while verifying your account service:", error);
-    throw new BadRequestError("Something went wrong while verifying your account service");
+    console.error("Something went wrong while creating account session service:", error);
+    throw new BadRequestError("Something went wrong while creating account session service");
+  }
+}
+// SIGNING OUT ACCOUNT SERVICE
+export async function signOutAccountService({ user_id }: TAccountBase) {
+  try {
+    if (!user_id) throw new BadRequestError("Failed to get user");
+
+    const deleteSession = await deleteSessionData({ user_id });
+
+    if (!deleteSession) throw new BadRequestError("Failed to delete session");
+
+    return deleteSession;
+  } catch (error) {
+    console.error("Something went wrong while signing out account session service:", error);
+    throw new BadRequestError("Something went wrong while signing out account session service");
   }
 }
 // GET ACCOUNT SERVICE
-export async function getAccountService(user_id: string) {
+export async function getAccountService({ user_id }: TAccountBase) {
   try {
     const user = getUserData(user_id);
 
@@ -185,8 +160,33 @@ export async function getAccountService(user_id: string) {
     throw new BadRequestError("Something went wrong while getting your account service");
   }
 }
+// GET VERIFICATION EMAIL TOKEN SERVICE (VERIFY TOKEN IN EMAIL LINK)
+export async function getVerificationEmailTokenService({ reset_token }: TVerficationToken) {
+  try {
+    if (!reset_token) throw new BadRequestError("Token is required");
+
+    const { user_email, date } = await DecryptJWEToJWT(reset_token);
+
+    if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: verfication account service");
+
+    const confirmHashToken = await sign({ sub: [user_email, new Date(date)] }, process.env.APP_SECRET_KEY as string);
+
+    const getUserIsVerified = await getAccountByVerificationHashData(confirmHashToken);
+
+    if (!getUserIsVerified) throw new BadRequestError("Token not found");
+
+    const deleteUserToken = await clearAccountVerificationStatusData({ user_id: getUserIsVerified.user_id });
+
+    if (!deleteUserToken) throw new BadRequestError("Failed to verified account");
+
+    return getUserIsVerified;
+  } catch (error) {
+    console.error("Something went wrong while verifying your account service:", error);
+    throw new BadRequestError("Something went wrong while verifying your account service");
+  }
+}
 // CREATE FORGOT PASSWORD SERVICE
-export async function createForgotPasswordService({ user_email }: { user_email: string }) {
+export async function createResetPasswordService({ user_email }: TAccountEmail) {
   try {
     if (!user_email) throw new BadRequestError("Email is required");
 
@@ -198,7 +198,7 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
 
     if (!user) throw new BadRequestError("Email not existing");
 
-    const resetUserToken = await getResetTokenByUserIdData(user.user_id);
+    const resetUserToken = await getResetTokenByUserIdData({ user_id: user.user_id });
 
     if (resetUserToken) {
       const expires = new Date(resetUserToken.reset_token_expires_at.toString());
@@ -209,7 +209,7 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
         throw new BadRequestError("We already sent you a reset link, please check your email");
       }
 
-      const deleteToken = await deleteResetTokenData(resetUserToken.reset_token_id);
+      const deleteToken = await deleteResetTokenData({ reset_token_id: resetUserToken.reset_token_id });
 
       if (!deleteToken) throw new BadRequestError("Failed to delete token");
     }
@@ -224,9 +224,9 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
       process.env.APP_SECRET_KEY as string
     );
 
-    const resetToken = await createResetTokenData({
-      resetTokenHash,
+    const resetToken = await createResetPasswordTokenData({
       user_id: user.user_id,
+      reset_token_hash: resetTokenHash,
       reset_token_expires_at: expiresAt,
     });
 
@@ -245,25 +245,17 @@ export async function createForgotPasswordService({ user_email }: { user_email: 
   }
 }
 // RESET PASSWORD SERVICE
-export async function resetPasswordService({
-  new_password,
-  confirm_password,
-  reset_token,
-}: {
-  new_password: string;
-  confirm_password: string;
-  reset_token: string;
-}) {
+export async function resetPasswordService({ new_password, confirm_password, reset_token }: TAccountResetPassword) {
   try {
     if (!new_password || !confirm_password) throw new BadRequestError("Password & Confirm Password is required");
 
     if (!reset_token) throw new UnauthorizedError("Unauthorized Reset Token");
 
-    const verifyToken = await getVerificationTokenService(reset_token);
+    const verifyToken = await getVerificationTokenService({ reset_token });
 
     if (!verifyToken) throw new BadRequestError("Token not verified");
 
-    const resetToken = await getResetTokenData(verifyToken);
+    const resetToken = await getResetTokenData({ reset_token_hash: verifyToken });
 
     if (!resetToken) throw new BadRequestError("Token not found");
 
@@ -271,7 +263,7 @@ export async function resetPasswordService({
     const now = new Date(Date.now());
 
     if (now > expiresAt) {
-      await deleteResetTokenData(resetToken.reset_token_id);
+      await deleteResetTokenData({ reset_token_id: resetToken.reset_token_id });
 
       throw new BadRequestError("Link expired, please request another link");
     }
@@ -283,14 +275,14 @@ export async function resetPasswordService({
 
     const hashPassword = await bcrypt.hash(new_password, SALT_ROUND);
 
-    const resetPassword = await resetPasswordAccountData({
+    const resetPassword = await resetAccountPasswordData({
       new_password: hashPassword,
       user_id: resetToken.user_id,
     });
 
     if (!resetPassword) throw new BadRequestError("Failed to reset your password");
 
-    await deleteResetTokenData(resetToken.reset_token_id);
+    await deleteResetTokenData({ reset_token_id: resetToken.reset_token_id });
 
     return resetPassword;
   } catch (error) {
@@ -299,17 +291,17 @@ export async function resetPasswordService({
   }
 }
 // GET VERIFICATION TOKEN SERVICE
-export async function getVerificationTokenService(token: string) {
+export async function getVerificationTokenService({ reset_token }: TVerficationToken) {
   try {
-    if (!token) throw new BadRequestError("No token provided");
+    if (!reset_token) throw new BadRequestError("No token provided");
 
     if (!process.env.APP_SECRET_KEY) throw new BadRequestError("APP SECRET KEY NOT FOUND: register account service");
 
-    const { user_email, date, tokenExpiry } = await DecryptJWEToJWT(token);
+    const { user_email, date, tokenExpiry } = await DecryptJWEToJWT(reset_token);
 
-    const currentDate = Math.floor(Date.now() / 1000);
+    const isTokenExpired = tokenExpiry < Math.floor(Date.now() / 1000);
 
-    if (tokenExpiry < currentDate) throw new BadRequestError("The token has expired.");
+    if (isTokenExpired) throw new BadRequestError("The token has expired.");
 
     const resetTokenHash = await sign(
       {
@@ -319,12 +311,12 @@ export async function getVerificationTokenService(token: string) {
       process.env.APP_SECRET_KEY as string
     );
 
-    const getResetToken = await getResetTokenData(resetTokenHash);
+    const getResetToken = await getResetTokenData({ reset_token_hash: resetTokenHash });
 
     if (!getResetToken) throw new BadRequestError("Token not found");
 
     if (getResetToken.reset_token_expires_at < new Date()) {
-      const deleteToken = await deleteResetTokenData(getResetToken.reset_token_id);
+      const deleteToken = await deleteResetTokenData({ reset_token_id: getResetToken.reset_token_id });
 
       if (!deleteToken) throw new BadRequestError("Failed to delete token");
 
@@ -338,7 +330,7 @@ export async function getVerificationTokenService(token: string) {
   }
 }
 // RESET PROFILE PASSWORD SERVICE
-export async function resetProfilePasswordService({
+export async function resetAccountPasswordService({
   user_id,
   user_password,
   new_password,
@@ -352,7 +344,7 @@ export async function resetProfilePasswordService({
   try {
     if (!user_password || !new_password || !confirm_password) throw new BadRequestError("All fields are required");
 
-    const user = await isUserExistingService(user_id);
+    const user = await isUserExistingService({ user_id });
 
     const isPasswordMatch = await bcrypt.compare(user_password, user.user_password);
 
@@ -371,24 +363,24 @@ export async function resetProfilePasswordService({
 
     return updateAccountPassword;
   } catch (error) {
-    console.error("Something went wrong while resetting profile password service:", error);
-    throw new BadRequestError("Something went wrong while resetting profile password service");
+    console.error("Something went wrong while resetting account password service:", error);
+    throw new BadRequestError("Something went wrong while resetting account password service");
   }
 }
-
-export async function updateProfileService({ user_id, account }: { user_id: string; account: any }) {
+// UPDATE ACCOUNT SERVICE
+export async function updateAccountService({ user_id, account }: { user_id: string; account: any }) {
   try {
-    let {user_profile} = account;
-    const { user_name, user_phone} = account;
+    let { user_profile } = account;
+    const { user_name, user_phone } = account;
 
     if (!user_id) throw new BadRequestError("User ID not found");
 
-    await isUserExistingService(user_id);
+    await isUserExistingService({ user_id });
 
     if (!user_name) throw new BadRequestError("User name is required");
 
     if (user_phone && !PH_PHONE_REGEX.test(user_phone)) throw new BadRequestError("Invalid phone number format");
-    
+
     if (user_profile && user_profile instanceof File) {
       await validateFileService({ image: user_profile });
 
@@ -408,36 +400,36 @@ export async function updateProfileService({ user_id, account }: { user_id: stri
       user_phone: null,
     };
 
-    if (account.user_phone !== undefined) {
-      data.user_phone = account.user_phone;
+    if (user_phone !== undefined) {
+      data.user_phone = user_phone;
     }
 
-    if (account.user_profile !== undefined) {
-      data.user_profile = account.user_profile ?? null;
+    if (user_profile !== undefined) {
+      data.user_profile = user_profile ?? null;
     }
 
-    const updateProfile = await updateProfileData({ account: data, user_id });
+    const updateAccount = await updateAccountData({ account: data, user_id });
 
-    if (!updateProfile) throw new BadRequestError("Failed to update your profile");
+    if (!updateAccount) throw new BadRequestError("Failed to update your profile");
 
-    return updateProfile;
+    return updateAccount;
   } catch (error) {
     console.error("Something went wrong while updating profile service:", error);
     throw new BadRequestError("Something went wrong while updating profile service");
   }
 }
-// DELETE IMAGE PROFILE SERVICE
-export async function deleteImageProfileService({ user_id }: { user_id: string }) {
+// DELETE IMAGE ACCOUNT SERVICE
+export async function deleteImageAccountService({ user_id }: TAccountBase) {
   try {
     if (!user_id) throw new BadRequestError("User ID not found");
 
-    const user = await isUserExistingService(user_id);
+    const user = await isUserExistingService({ user_id });
 
-    const deleteUserImage = await deleteImageProfileData({ user_id });
+    const deleteUserImage = await deleteAccountImageData({ user_id });
 
     if (!deleteUserImage) throw new BadRequestError("Failed to remove your image");
 
-    const deleteImage = await DeleteCloudinaryImage({image: user.user_profile!, folder_name: "profile"});
+    const deleteImage = await DeleteCloudinaryImage({ image: user.user_profile!, folder_name: "profile" });
 
     return deleteImage;
   } catch (error) {
