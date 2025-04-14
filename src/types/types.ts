@@ -1,5 +1,4 @@
-import type { Status } from "@prisma/client";
-import type { Role } from "../utils/enum.js";
+import type { Status } from "../utils/enum.js";
 
 export type TNotification = {
   action: Status;
@@ -11,16 +10,3 @@ export type TNotification = {
   user_receiver_id?: string;
 };
 
-type TAccountConfirmPassword = {
-  confirm_password?: string;
-}
-
-export type TAccount = TAccountConfirmPassword  &{
-  user_id: string;
-  user_name?: string;
-  user_phone?: string;
-  user_email?: string;
-  roles?: Role;
-  user_password?: string;
-  user_profile?: string | File;
-};

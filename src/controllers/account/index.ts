@@ -1,21 +1,19 @@
 import type { Context } from "hono";
 import {
-  createForgotPasswordService,
-  deleteImageProfileService,
+  createResetPasswordService,
+  deleteImageAccountService,
   getAccountService,
   getVerificationEmailTokenService,
   getVerificationTokenService,
   loginAccountService,
   registerAccountService,
   resetPasswordService,
-  resetProfilePasswordService,
+  resetAccountPasswordService,
   signOutAccountService,
-  updateProfileService,
+  updateAccountService,
 } from "../../services/account/index.js";
 import { StatusCodes } from "http-status-codes";
-import { deleteCookie } from "hono/cookie";
 import { BadRequestError } from "../../utils/error.js";
-import type { TAccount } from "../../types/types.js";
 
 // LOGIN ACCOUNT CONTROLLER
 export async function loginAccountController(c: Context) {
@@ -29,16 +27,11 @@ export async function loginAccountController(c: Context) {
 
     return c.json({ data: user, token: sessionToken, status: StatusCodes.OK });
   } catch (error) {
-    console.error(
-      "Something went wrong while logging in account conrtoller:",
-      error
-    );
-    throw new BadRequestError(
-      "Something went wrong while logging in account conrtoller"
-    );
+    console.error("Something went wrong while logging in account conrtoller:", error);
+    throw new BadRequestError("Something went wrong while logging in account conrtoller");
   }
 }
-
+// REGISTER ACCOUNT CONTROLLER
 export async function registerAccountController(c: Context) {
   try {
     const body = await c.req.json();
@@ -46,21 +39,15 @@ export async function registerAccountController(c: Context) {
     await registerAccountService(body);
 
     return c.json({
-      message:
-        "Successfully registered your account, please check your email to confirm your account",
+      message: "Successfully registered your account, please check your email to confirm your account",
       status: StatusCodes.CREATED,
     });
   } catch (error) {
-    console.error(
-      "Something went wrong while registering in account conrtoller:",
-      error
-    );
-    throw new BadRequestError(
-      "Something went wrong while registering in account conrtoller"
-    );
+    console.error("Something went wrong while registering in account conrtoller:", error);
+    throw new BadRequestError("Something went wrong while registering in account conrtoller");
   }
 }
-
+// GET ACCOUNT CONTROLLER
 export async function getAccountController(c: Context) {
   try {
     const user_id = c.get("user_id");
@@ -68,109 +55,144 @@ export async function getAccountController(c: Context) {
     const { user, accessToken } = await getAccountService(user_id);
 
     return c.json({ data: user, token: accessToken, status: StatusCodes.OK });
-  } catch (error) {}
+  } catch (error) {
+    console.error("Something went wrong while getting account controller:", error);
+    throw new BadRequestError("Something went wrong while getting account controller");
+  }
 }
-
+// SIGNOUT ACCOUNT CONTROLLER
 export async function signOutAccountController(c: Context) {
   const user_id = c.get("user_id");
 
   await signOutAccountService(user_id);
 
-  deleteCookie(c, "auth__token");
-
   return c.json({ message: "Successfully signout", status: StatusCodes.OK });
 }
+export async function createResetPasswordController(c: Context) {
+  try {
+    const body = await c.req.json();
 
-export async function createForgotPasswordController(c: Context) {
-  const body = await c.req.json();
+    await createResetPasswordService(body);
 
-  await createForgotPasswordService(body);
-
-  return c.json({
-    message: "We send to your email for resetting your password",
-    status: StatusCodes.CREATED,
-  });
+    return c.json({
+      message: "We send to your email for resetting your password",
+      status: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while create forgot password controller:", error);
+    throw new BadRequestError("Something went wrong while create forgot password controller");
+  }
 }
-
+// GET VERIFICATION TOKEN CONTROLLER (VERIFY TOKEN IN EMAIL LINK)
 export async function getVerificationTokenController(c: Context) {
-  const { token } = await c.req.param();
+  try {
+    const { token } = await c.req.param();
 
-  await getVerificationTokenService(token);
+    await getVerificationTokenService({reset_token: token});
 
-  return c.json({
-    message: "We send to your email for resetting your password",
-    status: StatusCodes.CREATED,
-  });
+    return c.json({
+      message: "We send to your email for resetting your password",
+      status: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while getting verification token controller:", error);
+    throw new BadRequestError("Something went wrong while getting verification token controller");
+  }
 }
-
+// RESET PASSWORD CONTROLLER (USE IN EMAIL FORGOT PASSWORD)
 export async function resetPasswordController(c: Context) {
-  const { token } = await c.req.param();
-  const body = await c.req.json();
+  try {
+    const body = await c.req.json();
+    const { token } = await c.req.param();
 
-  const new_password = body["new_password"];
-  const confirm_password = body["confirm_password"];
+    await resetPasswordService({
+      new_password: body["new_password"],
+      confirm_password: body["confirm_password"],
+      reset_token: token,
+    });
 
-  await resetPasswordService({
-    new_password,
-    confirm_password,
-    reset_token: token,
-  });
-
-  return c.json({
-    message: "Successfully change password",
-    status: StatusCodes.CREATED,
-  });
+    return c.json({
+      message: "Successfully change your password",
+      status: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while reset password controller:", error);
+    throw new BadRequestError("Something went wrong while reset password controller");
+  }
 }
+// RESET PROFILE PASSWORD CONTROLLER (USE IF AUTHENTICATED)
+export async function resetAccountPasswordController(c: Context) {
+  try {
+    const user_id = c.get("user_id");
 
-export async function resetProfilePasswordController(c: Context) {
-  const user_id = c.get("user_id");
+    const body = await c.req.json();
 
-  const body = await c.req.json();
+    const { user_password, new_password, confirm_password } = body;
 
-  const { user_password, new_password, confirm_password } = body;
+    await resetAccountPasswordService({
+      user_id,
+      user_password,
+      new_password,
+      confirm_password,
+    });
 
-  await resetProfilePasswordService({
-    user_id,
-    user_password,
-    new_password,
-    confirm_password,
-  });
-
-  return c.json({
-    message: "Successfully change password",
-    status: StatusCodes.ACCEPTED,
-  });
+    return c.json({
+      message: "Successfully change your password",
+      status: StatusCodes.CREATED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while reset profile password controller:", error);
+    throw new BadRequestError("Something went wrong while reset profile password controller");
+  }
 }
-
+// CONFIRM ACCOUNT CONTROLLER
 export async function confirmAccountController(c: Context) {
-  const { token } = await c.req.param();
-  await getVerificationEmailTokenService(token);
-  return c.json({
-    message: "Successfully confirm your account",
-    status: StatusCodes.ACCEPTED,
-  });
+  try {
+    const { token } = await c.req.param();
+
+    await getVerificationEmailTokenService({reset_token: token});
+
+    return c.json({
+      message: "Successfully confirmed your account",
+      status: StatusCodes.ACCEPTED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while confirm account controller:", error);
+    throw new BadRequestError("Something went wrong while confirm account controller");
+  }
 }
-export async function updateProfileController(c: Context) {
-  const user_id = c.get("user_id");
+// UPDATE PROFILE CONTROLLER
+export async function updateAccountController(c: Context) {
+  try {
+    const user_id = c.get("user_id");
 
-  const body = await c.req.parseBody();
+    const account = await c.req.parseBody();
 
-  const updatedUser = await updateProfileService({ user_id, account: body });
+    const updateAccount = await updateAccountService({ user_id, account });
 
-  return c.json({
-    message: "Successfully Updated your profile",
-    data: updatedUser,
-    status: StatusCodes.ACCEPTED,
-  });
+    return c.json({
+      message: "Successfully Updated your profile",
+      data: updateAccount,
+      status: StatusCodes.ACCEPTED,
+    });
+  } catch (error) {
+    console.error("Something went wrong while update profile controller:", error);
+    throw new BadRequestError("Something went wrong while update profile controller");
+  }
 }
-
+// DELETING IMAGE PROFILE CONTROLLER
 export async function deleteImageProfileController(c: Context) {
-  const user_id = c.get("user_id");
+  try {
+    const user_id = c.get("user_id");
 
-  await deleteImageProfileService({ user_id });
+    await deleteImageAccountService({user_id});
 
-  return c.json({
-    message: "Successfully remove your image",
-    status: StatusCodes.OK,
-  });
+    return c.json({
+      message: "Successfully remove your image",
+      status: StatusCodes.OK,
+    });
+  } catch (error) {
+    console.error("Something went wrong while deleting image profile controller:", error);
+    throw new BadRequestError("Something went wrong while deleting image profile controller");
+  }
 }
