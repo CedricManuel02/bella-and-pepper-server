@@ -4,7 +4,6 @@ import { BadRequestError } from "../../utils/error.js";
 
 const prisma = new PrismaClient();
 
-
 export async function getAccountByEmailData(user_email: string) {
   try {
     const user = await prisma.tbl_users.findUnique({ where: { user_email } });
