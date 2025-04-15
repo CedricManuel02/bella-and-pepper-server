@@ -1,8 +1,8 @@
-import { PRIVATE_KEY_PEM, PUBLIC_KEY_PEM } from "../constant/constant.js";
+import { PRIVATE_KEY_PEM, PUBLIC_KEY_PEM } from "../constant/pem.js";
 import { getOrder } from "../data/order/index.js";
 import * as jose from "jose";
 import { BadRequestError } from "./error.js";
-import { deleteFileService, formatFileService } from "../services/file/index.js";
+import { createFileService, deleteFileService, formatFileService, validateFileService } from "../services/file/index.js";
 
 // Helper function to generate a random string of a given length.
 function generateRandomString(length: number): string {
@@ -81,5 +81,20 @@ export async function DeleteCloudinaryImage({image, folder_name }: {image: strin
   } catch (error) {
     console.error("Something went wrong while deleting your image in cloudinary:", error);
     throw new BadRequestError("Something went wrong while deleting your image in cloudinary");
+  }
+}
+// CREATING OR UPLOADING IN CLOUDINARY
+export async function CreateCloudinaryImage({image, folder_name}: {image: File; folder_name: string }) {
+  try {
+    await validateFileService({ image });
+    
+    const uploadFile = await createFileService({ image, folder_name});
+  
+    if (!uploadFile) throw new BadRequestError("Cannot upload file, please try again");
+    
+    return {url: uploadFile.url, display_name: uploadFile.display_name}
+  } catch (error) {
+    console.error("Error to upload cloudinary file:", error);
+    throw new BadRequestError("Unable to upload cloudinary file");
   }
 }
