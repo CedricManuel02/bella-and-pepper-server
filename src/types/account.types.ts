@@ -1,12 +1,12 @@
 import type { TVerficationToken } from "./token.types.js";
 
-export type TAccountBase = {
+export type TAccountUserID = {
   user_id: string;
 };
 
-export type TAccountChangePassword = TAccountBase & TAccountNewPassword;
+export type TAccountChangePassword = TAccountUserID & TAccountNewPassword;
 export type TAccountLogin = TAccountEmail & TAccountPassword;
-export type TAccountUpdatePassword = TAccountBase & TAccountPassword;
+export type TAccountUpdatePassword = TAccountUserID & TAccountPassword;
 
 export type TAccountEmail = {
   user_email: string;
@@ -27,7 +27,7 @@ export type TUpdateAccount = TAccountEmail & {
 
 export type TAccount = TUpdateAccount &
   TAccountConfirmPassword &
-  TAccountBase &
+  TAccountUserID &
   TAccountRegister & {
     user_date_created: Date;
     user_date_updated: Date | null;
